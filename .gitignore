@@ -32,3 +32,6 @@ Thumbs.db
 
 # Package manager
 .pnpm-store/
+desktop.ini
+Thumbs.db
+.DS_Store
