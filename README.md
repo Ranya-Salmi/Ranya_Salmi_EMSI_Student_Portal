@@ -1,4 +1,4 @@
-# Portail EMSI — Suivi des Absences et Notes
+﻿# Portail EMSI — Suivi des Absences et Notes
 
 ## Présentation
 
@@ -35,5 +35,39 @@ L’objectif général est de concevoir une plateforme web claire, moderne et é
 
 Installer les dépendances :
 
-```bash
+~~~bash
 pnpm install
+~~~
+
+Lancer le serveur de développement :
+
+~~~bash
+pnpm dev
+~~~
+
+Ouvrir l’application dans le navigateur :
+
+~~~text
+http://localhost:3000
+~~~
+
+## État actuel
+
+La version actuelle correspond à une interface web fonctionnelle avec données de démonstration.
+
+L’intégration de la base de données, de l’authentification réelle et des API sera ajoutée dans les prochaines étapes.
+
+## Structure du projet
+
+~~~text
+app/          Pages et routes de l’application
+components/   Composants réutilisables
+hooks/        Hooks React
+lib/          Fonctions utilitaires
+public/       Ressources statiques
+styles/       Styles globaux
+~~~
+
+## Auteurs
+
+Projet réalisé dans le cadre du Projet de Fin d’Année — EMSI.
