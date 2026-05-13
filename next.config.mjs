@@ -1,6 +1,6 @@
-import path from "path"
+﻿import path from "path"
 
-/** @type {import('next').NextConfig} */
+/** @type {import("next").NextConfig} */
 const nextConfig = {
   turbopack: {
     root: path.resolve("."),
