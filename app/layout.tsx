@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   description:
     "Portail de suivi des absences et notes des étudiants avec détection IA des profils à risque - EMSI Centre",
   generator: "EMSI Centre - PFA 2025/2026",
+  icons: {
+    icon: "/emsi-icon.png",
+    shortcut: "/emsi-icon.png",
+    apple: "/emsi-icon.png",
+  },
 }
 
 export const viewport: Viewport = {
