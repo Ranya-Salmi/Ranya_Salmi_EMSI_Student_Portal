@@ -5,23 +5,23 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Users, 
+import {
+  BarChart3,
+  TrendingUp,
+  Users,
   BookOpen,
   Clock,
   AlertTriangle,
   Award,
-  Target
+  Target,
 } from "lucide-react"
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   LineChart,
   Line,
@@ -30,10 +30,9 @@ import {
   Cell,
   AreaChart,
   Area,
-  Legend
+  Legend,
 } from "recharts"
 
-// Mock data
 const notesDistribution = [
   { range: "0-5", count: 2 },
   { range: "5-8", count: 5 },
@@ -97,6 +96,13 @@ const topStudents = [
   { nom: "Idrissi Kenza", moyenne: 16.3, groupe: "GI4-B" },
 ]
 
+const chartTooltipStyle = {
+  backgroundColor: "#020617",
+  border: "1px solid #334155",
+  borderRadius: "8px",
+  color: "#f8fafc",
+}
+
 export default function StatistiquesPage() {
   const [selectedPeriod, setSelectedPeriod] = useState("semestre")
   const [selectedGroupe, setSelectedGroupe] = useState("all")
@@ -108,8 +114,11 @@ export default function StatistiquesPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Statistiques</h1>
-            <p className="text-muted-foreground">Analyse detaillee des performances de la filiere</p>
+            <p className="text-muted-foreground">
+              Analyse detaillee des performances de la filiere
+            </p>
           </div>
+
           <div className="flex gap-3">
             <Select value={selectedGroupe} onValueChange={setSelectedGroupe}>
               <SelectTrigger className="w-[150px]">
@@ -122,6 +131,7 @@ export default function StatistiquesPage() {
                 <SelectItem value="GI3-A">GI3-A</SelectItem>
               </SelectContent>
             </Select>
+
             <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
               <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="Periode" />
@@ -140,7 +150,7 @@ export default function StatistiquesPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
                   <Users className="h-6 w-6 text-primary" />
                 </div>
                 <div>
@@ -150,10 +160,11 @@ export default function StatistiquesPage() {
               </div>
             </CardContent>
           </Card>
+
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10">
                   <BookOpen className="h-6 w-6 text-blue-500" />
                 </div>
                 <div>
@@ -163,10 +174,11 @@ export default function StatistiquesPage() {
               </div>
             </CardContent>
           </Card>
+
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10">
                   <TrendingUp className="h-6 w-6 text-green-500" />
                 </div>
                 <div>
@@ -176,10 +188,11 @@ export default function StatistiquesPage() {
               </div>
             </CardContent>
           </Card>
+
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-red-500/10 flex items-center justify-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10">
                   <AlertTriangle className="h-6 w-6 text-red-500" />
                 </div>
                 <div>
@@ -208,15 +221,22 @@ export default function StatistiquesPage() {
                     <BarChart3 className="h-5 w-5 text-primary" />
                     Distribution des Notes
                   </CardTitle>
-                  <CardDescription>Repartition des etudiants par tranche de notes</CardDescription>
+                  <CardDescription>
+                    Repartition des etudiants par tranche de notes
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={notesDistribution}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="range" />
-                      <YAxis />
-                      <Tooltip />
+                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                      <XAxis dataKey="range" stroke="#94a3b8" />
+                      <YAxis stroke="#94a3b8" />
+                      <Tooltip
+                        cursor={{ fill: "transparent" }}
+                        contentStyle={chartTooltipStyle}
+                        labelStyle={{ color: "#f8fafc" }}
+                        itemStyle={{ color: "#f8fafc" }}
+                      />
                       <Bar dataKey="count" fill="#22c55e" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -235,10 +255,20 @@ export default function StatistiquesPage() {
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={moyenneParModule} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis type="number" domain={[0, 20]} />
-                      <YAxis dataKey="module" type="category" width={80} />
-                      <Tooltip />
+                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                      <XAxis type="number" domain={[0, 20]} stroke="#94a3b8" />
+                      <YAxis
+                        dataKey="module"
+                        type="category"
+                        width={80}
+                        stroke="#94a3b8"
+                      />
+                      <Tooltip
+                        cursor={{ fill: "transparent" }}
+                        contentStyle={chartTooltipStyle}
+                        labelStyle={{ color: "#f8fafc" }}
+                        itemStyle={{ color: "#f8fafc" }}
+                      />
                       <Bar dataKey="moyenne" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -253,19 +283,43 @@ export default function StatistiquesPage() {
                   <TrendingUp className="h-5 w-5 text-green-500" />
                   Evolution des Moyennes par Groupe
                 </CardTitle>
-                <CardDescription>Comparaison des performances sur les 6 derniers mois</CardDescription>
+                <CardDescription>
+                  Comparaison des performances sur les 6 derniers mois
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={evolutionMoyenne}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="mois" />
-                    <YAxis domain={[10, 16]} />
-                    <Tooltip />
+                    <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                    <XAxis dataKey="mois" stroke="#94a3b8" />
+                    <YAxis domain={[10, 16]} stroke="#94a3b8" />
+                    <Tooltip
+                      contentStyle={chartTooltipStyle}
+                      labelStyle={{ color: "#f8fafc" }}
+                      itemStyle={{ color: "#f8fafc" }}
+                    />
                     <Legend />
-                    <Line type="monotone" dataKey="GI4A" stroke="#22c55e" strokeWidth={2} name="GI4-A" />
-                    <Line type="monotone" dataKey="GI4B" stroke="#3b82f6" strokeWidth={2} name="GI4-B" />
-                    <Line type="monotone" dataKey="GI3A" stroke="#a855f7" strokeWidth={2} name="GI3-A" />
+                    <Line
+                      type="monotone"
+                      dataKey="GI4A"
+                      stroke="#22c55e"
+                      strokeWidth={2}
+                      name="GI4-A"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="GI4B"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      name="GI4-B"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="GI3A"
+                      stroke="#a855f7"
+                      strokeWidth={2}
+                      name="GI3-A"
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -278,15 +332,23 @@ export default function StatistiquesPage() {
                   <Target className="h-5 w-5 text-primary" />
                   Taux de reussite par Module
                 </CardTitle>
-                <CardDescription>Pourcentage d&apos;etudiants ayant valide chaque module</CardDescription>
+                <CardDescription>
+                  Pourcentage d&apos;etudiants ayant valide chaque module
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={tauxReussiteParModule}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="module" />
-                    <YAxis domain={[0, 100]} />
-                    <Tooltip formatter={(value) => `${value}%`} />
+                    <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                    <XAxis dataKey="module" stroke="#94a3b8" />
+                    <YAxis domain={[0, 100]} stroke="#94a3b8" />
+                    <Tooltip
+                      cursor={{ fill: "transparent" }}
+                      contentStyle={chartTooltipStyle}
+                      labelStyle={{ color: "#f8fafc" }}
+                      itemStyle={{ color: "#f8fafc" }}
+                      formatter={(value) => `${value}%`}
+                    />
                     <Bar dataKey="reussite" fill="#22c55e" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -303,18 +365,41 @@ export default function StatistiquesPage() {
                     <Clock className="h-5 w-5 text-orange-500" />
                     Evolution des Absences
                   </CardTitle>
-                  <CardDescription>Absences justifiees vs non justifiees par mois</CardDescription>
+                  <CardDescription>
+                    Absences justifiees vs non justifiees par mois
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
                     <AreaChart data={absencesParMois}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="mois" />
-                      <YAxis />
-                      <Tooltip />
+                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                      <XAxis dataKey="mois" stroke="#94a3b8" />
+                      <YAxis stroke="#94a3b8" />
+                      <Tooltip
+                        cursor={{ fill: "transparent" }}
+                        contentStyle={chartTooltipStyle}
+                        labelStyle={{ color: "#f8fafc" }}
+                        itemStyle={{ color: "#f8fafc" }}
+                      />
                       <Legend />
-                      <Area type="monotone" dataKey="justifiees" stackId="1" stroke="#22c55e" fill="#22c55e" fillOpacity={0.6} name="Justifiees" />
-                      <Area type="monotone" dataKey="nonJustifiees" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} name="Non justifiees" />
+                      <Area
+                        type="monotone"
+                        dataKey="justifiees"
+                        stackId="1"
+                        stroke="#22c55e"
+                        fill="#22c55e"
+                        fillOpacity={0.6}
+                        name="Justifiees"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="nonJustifiees"
+                        stackId="1"
+                        stroke="#ef4444"
+                        fill="#ef4444"
+                        fillOpacity={0.6}
+                        name="Non justifiees"
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -327,23 +412,31 @@ export default function StatistiquesPage() {
                 <CardContent className="pt-6">
                   <div className="text-center">
                     <p className="text-4xl font-bold text-orange-500">12%</p>
-                    <p className="text-sm text-muted-foreground mt-2">Taux d&apos;absence moyen</p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Taux d&apos;absence moyen
+                    </p>
                   </div>
                 </CardContent>
               </Card>
+
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-center">
                     <p className="text-4xl font-bold text-green-500">58%</p>
-                    <p className="text-sm text-muted-foreground mt-2">Absences justifiees</p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Absences justifiees
+                    </p>
                   </div>
                 </CardContent>
               </Card>
+
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-center">
                     <p className="text-4xl font-bold text-red-500">18</p>
-                    <p className="text-sm text-muted-foreground mt-2">Etudiants a risque exclusion</p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Etudiants a risque exclusion
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -361,6 +454,7 @@ export default function StatistiquesPage() {
                   </CardTitle>
                   <CardDescription>Classification IA des etudiants</CardDescription>
                 </CardHeader>
+
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
@@ -378,7 +472,6 @@ export default function StatistiquesPage() {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip />
                     </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -391,34 +484,48 @@ export default function StatistiquesPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+                    <div className="flex items-center justify-between rounded-lg bg-green-50 p-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-4 h-4 rounded-full bg-green-500" />
-                        <span className="font-semibold text-green-950">Risque Faible</span>
+                        <div className="h-4 w-4 rounded-full bg-green-500" />
+                        <span className="font-semibold text-green-950">
+                          Risque Faible
+                        </span>
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-bold text-green-600">85</p>
-                        <p className="text-sm font-medium text-slate-700">68% des etudiants</p>
+                        <p className="text-sm font-medium text-slate-700">
+                          68% des etudiants
+                        </p>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg">
+
+                    <div className="flex items-center justify-between rounded-lg bg-yellow-50 p-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-4 h-4 rounded-full bg-yellow-500" />
-                        <span className="font-semibold text-yellow-950">Risque Moyen</span>
+                        <div className="h-4 w-4 rounded-full bg-yellow-500" />
+                        <span className="font-semibold text-yellow-950">
+                          Risque Moyen
+                        </span>
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-bold text-yellow-600">28</p>
-                        <p className="text-sm font-medium text-slate-700">22% des etudiants</p>
+                        <p className="text-sm font-medium text-slate-700">
+                          22% des etudiants
+                        </p>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
+
+                    <div className="flex items-center justify-between rounded-lg bg-red-50 p-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-4 h-4 rounded-full bg-red-500" />
-                        <span className="font-semibold text-red-950">Risque Eleve</span>
+                        <div className="h-4 w-4 rounded-full bg-red-500" />
+                        <span className="font-semibold text-red-950">
+                          Risque Eleve
+                        </span>
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-bold text-red-600">12</p>
-                        <p className="text-sm font-medium text-slate-700">10% des etudiants</p>
+                        <p className="text-sm font-medium text-slate-700">
+                          10% des etudiants
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -434,28 +541,42 @@ export default function StatistiquesPage() {
                   <Award className="h-5 w-5 text-yellow-500" />
                   Top 5 des Meilleurs Etudiants
                 </CardTitle>
-                <CardDescription>Classement base sur la moyenne generale</CardDescription>
+                <CardDescription>
+                  Classement base sur la moyenne generale
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {topStudents.map((student, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div
+                      key={index}
+                      className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/50"
+                    >
                       <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                          index === 0 ? 'bg-yellow-500 text-white' :
-                          index === 1 ? 'bg-gray-400 text-white' :
-                          index === 2 ? 'bg-amber-700 text-white' :
-                          'bg-muted text-muted-foreground'
-                        }`}>
+                        <div
+                          className={`flex h-10 w-10 items-center justify-center rounded-full font-bold ${
+                            index === 0
+                              ? "bg-yellow-500 text-white"
+                              : index === 1
+                                ? "bg-gray-400 text-white"
+                                : index === 2
+                                  ? "bg-amber-700 text-white"
+                                  : "bg-muted text-muted-foreground"
+                          }`}
+                        >
                           {index + 1}
                         </div>
                         <div>
                           <p className="font-medium">{student.nom}</p>
-                          <p className="text-sm text-muted-foreground">{student.groupe}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {student.groupe}
+                          </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-2xl font-bold text-primary">{student.moyenne}</p>
+                        <p className="text-2xl font-bold text-primary">
+                          {student.moyenne}
+                        </p>
                         <p className="text-sm text-muted-foreground">/20</p>
                       </div>
                     </div>
@@ -469,8 +590,3 @@ export default function StatistiquesPage() {
     </DashboardLayout>
   )
 }
-
-
-
-
-
