@@ -1,8 +1,8 @@
 // API configuration and helper functions for EMSI Portail
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-// Mock mode - enabled when no backend is available
-const MOCK_MODE = !process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_MOCK_MODE === 'true';
+// Mock mode forced until the real backend/database is implemented
+const MOCK_MODE = true;
 
 // Mock users for testing
 const MOCK_USERS: Record<string, { password: string; user: User }> = {
@@ -414,10 +414,138 @@ class ApiClient {
     return this.request<Absence[]>(`/absences/etudiant/${etudiantId}`);
   }
 
+  
   // Etudiant
-  async getRecapEtudiant(): Promise<RecapEtudiant> {
-    return this.request<RecapEtudiant>('/etudiant/me/recap');
+async getRecapEtudiant(): Promise<RecapEtudiant> {
+  if (MOCK_MODE) {
+    return Promise.resolve({
+      etudiant: {
+        id: 4,
+        cne: "E123456789",
+        full_name: "Youssef ALAMI",
+        email: "etudiant1@emsi.ma",
+      },
+      notes: [
+        {
+          id: 1,
+          etudiant_id: 4,
+          evaluation_id: 1,
+          evaluation_nom: "Contrôle 1",
+          module_nom: "Bases de Données",
+          module_id: 1,
+          valeur: 14,
+          coefficient: 1,
+          bareme_max: 20,
+          date: "2026-03-10",
+          statut: "validée",
+        },
+        {
+          id: 2,
+          etudiant_id: 4,
+          evaluation_id: 2,
+          evaluation_nom: "Projet",
+          module_nom: "Programmation Web",
+          module_id: 2,
+          valeur: 16,
+          coefficient: 2,
+          bareme_max: 20,
+          date: "2026-03-18",
+          statut: "validée",
+        },
+        {
+          id: 3,
+          etudiant_id: 4,
+          evaluation_id: 3,
+          evaluation_nom: "Contrôle 2",
+          module_nom: "Mathématiques",
+          module_id: 3,
+          valeur: 12.5,
+          coefficient: 1,
+          bareme_max: 20,
+          date: "2026-03-22",
+          statut: "validée",
+        },
+      ],
+      absences: [
+        {
+          id: 1,
+          etudiant_id: 4,
+          module_id: 1,
+          module_nom: "Mathématiques",
+          date_cours: "2026-03-12",
+          justifiee: false,
+          statut: "non justifiée",
+          motif_justification: undefined,
+        },
+        {
+          id: 2,
+          etudiant_id: 4,
+          module_id: 2,
+          module_nom: "Programmation Web",
+          date_cours: "2026-03-18",
+          justifiee: true,
+          statut: "justifiée",
+          motif_justification: "Certificat médical",
+        },
+        {
+          id: 3,
+          etudiant_id: 4,
+          module_id: 3,
+          module_nom: "Bases de Données",
+          date_cours: "2026-03-20",
+          justifiee: false,
+          statut: "non justifiée",
+          motif_justification: undefined,
+        },
+      ],
+      alertes: [
+        {
+          id: 1,
+          etudiant_id: 4,
+          etudiant_nom: "Youssef ALAMI",
+          type: "absence",
+          urgence: "critical",
+          titre: "Seuil d'absences atteint",
+          message:
+            "Vous avez atteint 8 heures d'absences non justifiées ce mois. Veuillez contacter votre chef de filière.",
+          lue: false,
+          created_at: "2026-03-15T10:30:00.000Z",
+        },
+        {
+          id: 2,
+          etudiant_id: 4,
+          etudiant_nom: "Youssef ALAMI",
+          type: "note",
+          urgence: "warning",
+          titre: "Note en dessous de la moyenne",
+          message:
+            "Votre note en Bases de Données est en dessous de la moyenne de la classe.",
+          lue: false,
+          created_at: "2026-03-14T14:00:00.000Z",
+        },
+        {
+          id: 3,
+          etudiant_id: 4,
+          etudiant_nom: "Youssef ALAMI",
+          type: "note",
+          urgence: "info",
+          titre: "Nouvelle note disponible",
+          message: "La note du contrôle de Programmation Web a été publiée.",
+          lue: true,
+          created_at: "2026-03-13T09:00:00.000Z",
+        },
+      ],
+      score_risque: {
+        score: 25,
+        niveau: "faible",
+        couleur: "green",
+      },
+    });
   }
+
+  return this.request<RecapEtudiant>("/etudiant/me/recap");
+}
+ 
 
   // Admin
   async getUsers(): Promise<User[]> {

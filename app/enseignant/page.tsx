@@ -3,15 +3,19 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { api, type EtudiantRisque, type Alerte } from "@/lib/api";
 import { getRiskBgColor, getUrgenceColor } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
-  BookOpen,
   Users,
   ClipboardList,
   AlertTriangle,
@@ -36,6 +40,7 @@ export default function EnseignantDashboardPage() {
           api.getEtudiantsRisque(),
           api.getMesAlertes(),
         ]);
+
         setEtudiantsRisque(etudiantsData);
         setAlertes(alertesData);
       } catch (err) {
@@ -44,13 +49,18 @@ export default function EnseignantDashboardPage() {
         setLoading(false);
       }
     }
+
     fetchData();
   }, []);
 
   const stats = {
-    etudiantsRisqueEleve: etudiantsRisque.filter(e => e.niveau_risque === "eleve").length,
-    etudiantsRisqueModere: etudiantsRisque.filter(e => e.niveau_risque === "modere").length,
-    alertesNonLues: alertes.filter(a => !a.lue).length,
+    etudiantsRisqueEleve: etudiantsRisque.filter(
+      (e) => e.niveau_risque === "eleve"
+    ).length,
+    etudiantsRisqueModere: etudiantsRisque.filter(
+      (e) => e.niveau_risque === "modere"
+    ).length,
+    alertesNonLues: alertes.filter((a) => !a.lue).length,
   };
 
   const quickActions = [
@@ -93,23 +103,28 @@ export default function EnseignantDashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           {quickActions.map((action) => {
             const Icon = action.icon;
+
             return (
               <Link key={action.href} href={action.href}>
                 <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
                   <CardContent className="pt-6">
                     <div className="flex items-start gap-4">
-                      <div className={cn(
-                        "flex items-center justify-center w-12 h-12 rounded-xl shrink-0",
-                        action.color
-                      )}>
+                      <div
+                        className={cn(
+                          "flex items-center justify-center w-12 h-12 rounded-xl shrink-0",
+                          action.color
+                        )}
+                      >
                         <Icon className="h-6 w-6" />
                       </div>
+
                       <div className="flex-1">
                         <h3 className="font-semibold">{action.title}</h3>
                         <p className="text-sm text-muted-foreground mt-1">
                           {action.description}
                         </p>
                       </div>
+
                       <ChevronRight className="h-5 w-5 text-muted-foreground" />
                     </div>
                   </CardContent>
@@ -127,11 +142,18 @@ export default function EnseignantDashboardPage() {
                 <div className="flex items-center justify-center w-10 h-10 rounded-full bg-destructive/10">
                   <AlertTriangle className="h-5 w-5 text-destructive" />
                 </div>
+
                 <div>
-                  <p className="text-2xl font-bold text-destructive">
-                    {loading ? <Skeleton className="h-8 w-8 inline-block" /> : stats.etudiantsRisqueEleve}
+                  <div className="text-2xl font-bold text-destructive">
+                    {loading ? (
+                      <Skeleton className="h-8 w-8 inline-block" />
+                    ) : (
+                      stats.etudiantsRisqueEleve
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Étudiants à risque élevé
                   </p>
-                  <p className="text-sm text-muted-foreground">Étudiants à risque élevé</p>
                 </div>
               </div>
             </CardContent>
@@ -143,11 +165,18 @@ export default function EnseignantDashboardPage() {
                 <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--risk-medium)]/10">
                   <TrendingUp className="h-5 w-5 text-[var(--risk-medium)]" />
                 </div>
+
                 <div>
-                  <p className="text-2xl font-bold text-[var(--risk-medium)]">
-                    {loading ? <Skeleton className="h-8 w-8 inline-block" /> : stats.etudiantsRisqueModere}
+                  <div className="text-2xl font-bold text-[var(--risk-medium)]">
+                    {loading ? (
+                      <Skeleton className="h-8 w-8 inline-block" />
+                    ) : (
+                      stats.etudiantsRisqueModere
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    À risque modéré
                   </p>
-                  <p className="text-sm text-muted-foreground">À risque modéré</p>
                 </div>
               </div>
             </CardContent>
@@ -159,11 +188,18 @@ export default function EnseignantDashboardPage() {
                 <div className="flex items-center justify-center w-10 h-10 rounded-full bg-chart-2/10">
                   <Bell className="h-5 w-5 text-chart-2" />
                 </div>
+
                 <div>
-                  <p className="text-2xl font-bold text-chart-2">
-                    {loading ? <Skeleton className="h-8 w-8 inline-block" /> : stats.alertesNonLues}
+                  <div className="text-2xl font-bold text-chart-2">
+                    {loading ? (
+                      <Skeleton className="h-8 w-8 inline-block" />
+                    ) : (
+                      stats.alertesNonLues
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Alertes non lues
                   </p>
-                  <p className="text-sm text-muted-foreground">Alertes non lues</p>
                 </div>
               </div>
             </CardContent>
@@ -183,6 +219,7 @@ export default function EnseignantDashboardPage() {
                 Étudiants avec un score de risque élevé ou modéré
               </CardDescription>
             </CardHeader>
+
             <CardContent>
               {loading ? (
                 <div className="space-y-4">
@@ -190,7 +227,8 @@ export default function EnseignantDashboardPage() {
                     <Skeleton key={i} className="h-14 w-full" />
                   ))}
                 </div>
-              ) : etudiantsRisque.filter(e => e.niveau_risque !== "faible").length === 0 ? (
+              ) : etudiantsRisque.filter((e) => e.niveau_risque !== "faible")
+                  .length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                   <CheckCircle2 className="h-8 w-8 mb-2 opacity-50 text-primary" />
                   <p className="text-sm">Aucun étudiant à risque</p>
@@ -198,7 +236,7 @@ export default function EnseignantDashboardPage() {
               ) : (
                 <div className="space-y-3">
                   {etudiantsRisque
-                    .filter(e => e.niveau_risque !== "faible")
+                    .filter((e) => e.niveau_risque !== "faible")
                     .sort((a, b) => b.score - a.score)
                     .slice(0, 5)
                     .map((etudiant) => (
@@ -207,14 +245,26 @@ export default function EnseignantDashboardPage() {
                         className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
                       >
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{etudiant.full_name}</p>
+                          <p className="font-medium truncate">
+                            {etudiant.full_name}
+                          </p>
                           <p className="text-sm text-muted-foreground">
-                            Moy: {etudiant.moyenne_generale?.toFixed(1) || "—"}/20 •
+                            Moy:{" "}
+                            {etudiant.moyenne_generale?.toFixed(1) || "—"}/20
+                            {" • "}
                             Abs: {etudiant.taux_absence?.toFixed(0) || 0}%
                           </p>
                         </div>
-                        <Badge className={cn("capitalize", getRiskBgColor(etudiant.niveau_risque))}>
-                          {etudiant.niveau_risque === "eleve" ? "Élevé" : "Modéré"}
+
+                        <Badge
+                          className={cn(
+                            "capitalize",
+                            getRiskBgColor(etudiant.niveau_risque)
+                          )}
+                        >
+                          {etudiant.niveau_risque === "eleve"
+                            ? "Élevé"
+                            : "Modéré"}
                         </Badge>
                       </div>
                     ))}
@@ -234,6 +284,7 @@ export default function EnseignantDashboardPage() {
                 Notifications concernant vos étudiants
               </CardDescription>
             </CardHeader>
+
             <CardContent>
               {loading ? (
                 <div className="space-y-4">
@@ -265,8 +316,14 @@ export default function EnseignantDashboardPage() {
                           <CheckCircle2 className="h-4 w-4" />
                         )}
                       </div>
+
                       <div className="flex-1 min-w-0">
-                        <p className={cn("text-sm", !alerte.lue && "font-medium")}>
+                        <p
+                          className={cn(
+                            "text-sm",
+                            !alerte.lue && "font-medium"
+                          )}
+                        >
                           {alerte.titre}
                         </p>
                         <p className="text-xs mt-0.5 opacity-80 line-clamp-1">

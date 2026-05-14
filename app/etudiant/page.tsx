@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
@@ -358,33 +358,33 @@ export default function EtudiantDashboardPage() {
                   <AreaChart data={trendData}>
                     <defs>
                       <linearGradient id="colorNote" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="oklch(0.72 0.19 145)" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="oklch(0.72 0.19 145)" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
                     <XAxis 
                       dataKey="month" 
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fill: 'oklch(0.55 0 0)', fontSize: 12 }}
+                      tick={{ fill: '#94a3b8', fontSize: 12 }}
                     />
                     <YAxis 
                       domain={[10, 20]}
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fill: 'oklch(0.55 0 0)', fontSize: 12 }}
+                      tick={{ fill: '#94a3b8', fontSize: 12 }}
                     />
                     <Tooltip 
                       contentStyle={{ 
-                        backgroundColor: 'oklch(0.13 0.008 260)',
-                        border: '1px solid oklch(0.22 0.01 260)',
+                        backgroundColor: '#020617',
+                        border: '1px solid #334155',
                         borderRadius: '8px',
                       }}
                     />
                     <Area 
                       type="monotone" 
                       dataKey="note" 
-                      stroke="oklch(0.72 0.19 145)" 
+                      stroke="#22c55e" 
                       strokeWidth={2}
                       fillOpacity={1} 
                       fill="url(#colorNote)" 
@@ -408,23 +408,23 @@ export default function EtudiantDashboardPage() {
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart data={radarData}>
-                    <PolarGrid stroke="oklch(0.22 0.01 260)" />
+                    <PolarGrid stroke="#334155" />
                     <PolarAngleAxis 
                       dataKey="subject" 
-                      tick={{ fill: 'oklch(0.55 0 0)', fontSize: 10 }}
+                      tick={{ fill: '#94a3b8', fontSize: 10 }}
                     />
                     <Radar
                       name="Score"
                       dataKey="A"
-                      stroke="oklch(0.72 0.19 145)"
-                      fill="oklch(0.72 0.19 145)"
+                      stroke="#22c55e"
+                      fill="#22c55e"
                       fillOpacity={0.3}
                       strokeWidth={2}
                     />
                     <Tooltip 
                       contentStyle={{ 
-                        backgroundColor: 'oklch(0.13 0.008 260)',
-                        border: '1px solid oklch(0.22 0.01 260)',
+                        backgroundColor: '#020617',
+                        border: '1px solid #334155',
                         borderRadius: '8px',
                       }}
                     />
