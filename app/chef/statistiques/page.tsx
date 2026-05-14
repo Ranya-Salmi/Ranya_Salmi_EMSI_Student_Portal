@@ -184,7 +184,7 @@ export default function StatistiquesPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">12</p>
-                  <p className="text-sm text-muted-foreground">Etudiants Ã  risque</p>
+                  <p className="text-sm text-muted-foreground">Etudiants a risque</p>
                 </div>
               </div>
             </CardContent>
@@ -469,6 +469,8 @@ export default function StatistiquesPage() {
     </DashboardLayout>
   )
 }
+
+
 
 
 
