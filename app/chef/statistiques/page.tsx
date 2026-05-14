@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState } from "react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
@@ -48,11 +48,11 @@ const notesDistribution = [
 const moyenneParModule = [
   { module: "Dev Web", moyenne: 14.2 },
   { module: "BDD", moyenne: 12.8 },
-  { module: "Réseaux", moyenne: 11.5 },
+  { module: "Reseaux", moyenne: 11.5 },
   { module: "Algo", moyenne: 13.5 },
   { module: "Gestion", moyenne: 15.2 },
   { module: "IA", moyenne: 12.9 },
-  { module: "Sécurité", moyenne: 13.8 },
+  { module: "Securite", moyenne: 13.8 },
 ]
 
 const evolutionMoyenne = [
@@ -67,7 +67,7 @@ const evolutionMoyenne = [
 const riskDistribution = [
   { name: "Faible", value: 85, color: "#22c55e" },
   { name: "Moyen", value: 28, color: "#eab308" },
-  { name: "Élevé", value: 12, color: "#ef4444" },
+  { name: "Eleve", value: 12, color: "#ef4444" },
 ]
 
 const absencesParMois = [
@@ -82,11 +82,11 @@ const absencesParMois = [
 const tauxReussiteParModule = [
   { module: "Dev Web", reussite: 92 },
   { module: "BDD", reussite: 78 },
-  { module: "Réseaux", reussite: 72 },
+  { module: "Reseaux", reussite: 72 },
   { module: "Algo", reussite: 85 },
   { module: "Gestion", reussite: 95 },
   { module: "IA", reussite: 80 },
-  { module: "Sécurité", reussite: 88 },
+  { module: "Securite", reussite: 88 },
 ]
 
 const topStudents = [
@@ -108,7 +108,7 @@ export default function StatistiquesPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Statistiques</h1>
-            <p className="text-muted-foreground">Analyse détaillée des performances de la filière</p>
+            <p className="text-muted-foreground">Analyse detaillee des performances de la filiere</p>
           </div>
           <div className="flex gap-3">
             <Select value={selectedGroupe} onValueChange={setSelectedGroupe}>
@@ -124,12 +124,12 @@ export default function StatistiquesPage() {
             </Select>
             <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
               <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Période" />
+                <SelectValue placeholder="Periode" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="mois">Ce mois</SelectItem>
                 <SelectItem value="semestre">Ce semestre</SelectItem>
-                <SelectItem value="annee">Cette année</SelectItem>
+                <SelectItem value="annee">Cette annee</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -145,7 +145,7 @@ export default function StatistiquesPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">125</p>
-                  <p className="text-sm text-muted-foreground">Étudiants</p>
+                  <p className="text-sm text-muted-foreground">Etudiants</p>
                 </div>
               </div>
             </CardContent>
@@ -158,7 +158,7 @@ export default function StatistiquesPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">13.4</p>
-                  <p className="text-sm text-muted-foreground">Moyenne générale</p>
+                  <p className="text-sm text-muted-foreground">Moyenne generale</p>
                 </div>
               </div>
             </CardContent>
@@ -171,7 +171,7 @@ export default function StatistiquesPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">84%</p>
-                  <p className="text-sm text-muted-foreground">Taux de réussite</p>
+                  <p className="text-sm text-muted-foreground">Taux de reussite</p>
                 </div>
               </div>
             </CardContent>
@@ -184,7 +184,7 @@ export default function StatistiquesPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">12</p>
-                  <p className="text-sm text-muted-foreground">Étudiants à risque</p>
+                  <p className="text-sm text-muted-foreground">Etudiants Ã  risque</p>
                 </div>
               </div>
             </CardContent>
@@ -208,7 +208,7 @@ export default function StatistiquesPage() {
                     <BarChart3 className="h-5 w-5 text-primary" />
                     Distribution des Notes
                   </CardTitle>
-                  <CardDescription>Répartition des étudiants par tranche de notes</CardDescription>
+                  <CardDescription>Repartition des etudiants par tranche de notes</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -217,7 +217,7 @@ export default function StatistiquesPage() {
                       <XAxis dataKey="range" />
                       <YAxis />
                       <Tooltip />
-                      <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="count" fill="#22c55e" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -230,7 +230,7 @@ export default function StatistiquesPage() {
                     <BookOpen className="h-5 w-5 text-blue-500" />
                     Moyenne par Module
                   </CardTitle>
-                  <CardDescription>Performance moyenne par matière</CardDescription>
+                  <CardDescription>Performance moyenne par matiere</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -239,7 +239,7 @@ export default function StatistiquesPage() {
                       <XAxis type="number" domain={[0, 20]} />
                       <YAxis dataKey="module" type="category" width={80} />
                       <Tooltip />
-                      <Bar dataKey="moyenne" fill="hsl(var(--chart-2))" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="moyenne" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -251,7 +251,7 @@ export default function StatistiquesPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-green-500" />
-                  Évolution des Moyennes par Groupe
+                  Evolution des Moyennes par Groupe
                 </CardTitle>
                 <CardDescription>Comparaison des performances sur les 6 derniers mois</CardDescription>
               </CardHeader>
@@ -263,22 +263,22 @@ export default function StatistiquesPage() {
                     <YAxis domain={[10, 16]} />
                     <Tooltip />
                     <Legend />
-                    <Line type="monotone" dataKey="GI4A" stroke="hsl(var(--chart-1))" strokeWidth={2} name="GI4-A" />
-                    <Line type="monotone" dataKey="GI4B" stroke="hsl(var(--chart-2))" strokeWidth={2} name="GI4-B" />
-                    <Line type="monotone" dataKey="GI3A" stroke="hsl(var(--chart-3))" strokeWidth={2} name="GI3-A" />
+                    <Line type="monotone" dataKey="GI4A" stroke="#22c55e" strokeWidth={2} name="GI4-A" />
+                    <Line type="monotone" dataKey="GI4B" stroke="#3b82f6" strokeWidth={2} name="GI4-B" />
+                    <Line type="monotone" dataKey="GI3A" stroke="#a855f7" strokeWidth={2} name="GI3-A" />
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
 
-            {/* Taux de réussite par module */}
+            {/* Taux de reussite par module */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Target className="h-5 w-5 text-primary" />
-                  Taux de Réussite par Module
+                  Taux de reussite par Module
                 </CardTitle>
-                <CardDescription>Pourcentage d&apos;étudiants ayant validé chaque module</CardDescription>
+                <CardDescription>Pourcentage d&apos;etudiants ayant valide chaque module</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
@@ -287,7 +287,7 @@ export default function StatistiquesPage() {
                     <XAxis dataKey="module" />
                     <YAxis domain={[0, 100]} />
                     <Tooltip formatter={(value) => `${value}%`} />
-                    <Bar dataKey="reussite" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="reussite" fill="#22c55e" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -301,9 +301,9 @@ export default function StatistiquesPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Clock className="h-5 w-5 text-orange-500" />
-                    Évolution des Absences
+                    Evolution des Absences
                   </CardTitle>
-                  <CardDescription>Absences justifiées vs non justifiées par mois</CardDescription>
+                  <CardDescription>Absences justifiees vs non justifiees par mois</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -313,8 +313,8 @@ export default function StatistiquesPage() {
                       <YAxis />
                       <Tooltip />
                       <Legend />
-                      <Area type="monotone" dataKey="justifiees" stackId="1" stroke="#22c55e" fill="#22c55e" fillOpacity={0.6} name="Justifiées" />
-                      <Area type="monotone" dataKey="nonJustifiees" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} name="Non justifiées" />
+                      <Area type="monotone" dataKey="justifiees" stackId="1" stroke="#22c55e" fill="#22c55e" fillOpacity={0.6} name="Justifiees" />
+                      <Area type="monotone" dataKey="nonJustifiees" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} name="Non justifiees" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -335,7 +335,7 @@ export default function StatistiquesPage() {
                 <CardContent className="pt-6">
                   <div className="text-center">
                     <p className="text-4xl font-bold text-green-500">58%</p>
-                    <p className="text-sm text-muted-foreground mt-2">Absences justifiées</p>
+                    <p className="text-sm text-muted-foreground mt-2">Absences justifiees</p>
                   </div>
                 </CardContent>
               </Card>
@@ -343,7 +343,7 @@ export default function StatistiquesPage() {
                 <CardContent className="pt-6">
                   <div className="text-center">
                     <p className="text-4xl font-bold text-red-500">18</p>
-                    <p className="text-sm text-muted-foreground mt-2">Étudiants à risque exclusion</p>
+                    <p className="text-sm text-muted-foreground mt-2">Etudiants a risque exclusion</p>
                   </div>
                 </CardContent>
               </Card>
@@ -357,9 +357,9 @@ export default function StatistiquesPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                    Répartition des Niveaux de Risque
+                    Repartition des Niveaux de Risque
                   </CardTitle>
-                  <CardDescription>Classification IA des étudiants</CardDescription>
+                  <CardDescription>Classification IA des etudiants</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -384,41 +384,41 @@ export default function StatistiquesPage() {
                 </CardContent>
               </Card>
 
-              {/* Détails risques */}
+              {/* Details risques */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Détails par Niveau de Risque</CardTitle>
+                  <CardTitle>Details par Niveau de Risque</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className="w-4 h-4 rounded-full bg-green-500" />
-                        <span className="font-medium">Risque Faible</span>
+                        <span className="font-semibold text-green-950">Risque Faible</span>
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-bold text-green-600">85</p>
-                        <p className="text-sm text-muted-foreground">68% des étudiants</p>
+                        <p className="text-sm font-medium text-slate-700">68% des etudiants</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className="w-4 h-4 rounded-full bg-yellow-500" />
-                        <span className="font-medium">Risque Moyen</span>
+                        <span className="font-semibold text-yellow-950">Risque Moyen</span>
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-bold text-yellow-600">28</p>
-                        <p className="text-sm text-muted-foreground">22% des étudiants</p>
+                        <p className="text-sm font-medium text-slate-700">22% des etudiants</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className="w-4 h-4 rounded-full bg-red-500" />
-                        <span className="font-medium">Risque Élevé</span>
+                        <span className="font-semibold text-red-950">Risque Eleve</span>
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-bold text-red-600">12</p>
-                        <p className="text-sm text-muted-foreground">10% des étudiants</p>
+                        <p className="text-sm font-medium text-slate-700">10% des etudiants</p>
                       </div>
                     </div>
                   </div>
@@ -432,9 +432,9 @@ export default function StatistiquesPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Award className="h-5 w-5 text-yellow-500" />
-                  Top 5 des Meilleurs Étudiants
+                  Top 5 des Meilleurs Etudiants
                 </CardTitle>
-                <CardDescription>Classement basé sur la moyenne générale</CardDescription>
+                <CardDescription>Classement base sur la moyenne generale</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -469,3 +469,6 @@ export default function StatistiquesPage() {
     </DashboardLayout>
   )
 }
+
+
+
