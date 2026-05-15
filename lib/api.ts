@@ -87,8 +87,28 @@ export interface AcademicModule {
   nom: string;
   code?: string | null;
   coefficient?: number | null;
+  semestre?: number | null;
   promotion_id?: number | null;
   enseignant_id?: number | null;
+}
+
+export interface ModuleEtudiant {
+  id: number;
+  full_name: string;
+  cne?: string | null;
+  email: string;
+  taux_absence: number;
+  moyenne_generale: number;
+}
+
+export interface Evaluation {
+  id: number;
+  nom: string;
+  type: string;
+  coefficient: number;
+  bareme_max: number;
+  date?: string | null;
+  module_id: number;
 }
 
 export interface Alerte {
@@ -336,10 +356,10 @@ class ApiClient {
   }): Promise<AcademicModule[]> {
     if (MOCK_MODE) {
       return Promise.resolve([
-        { id: 1, nom: "Analyse Numérique S2", code: "MATH301" },
-        { id: 2, nom: "Base de données avancées", code: "INFO302" },
-        { id: 3, nom: "Réseaux et Protocoles", code: "NET303" },
-        { id: 4, nom: "Génie Logiciel", code: "GL304" },
+        { id: 1, nom: "Analyse Numérique S2", code: "MATH301", coefficient: 3 },
+        { id: 2, nom: "Base de données avancées", code: "INFO302", coefficient: 4 },
+        { id: 3, nom: "Réseaux et Protocoles", code: "NET303", coefficient: 3 },
+        { id: 4, nom: "Génie Logiciel", code: "GL304", coefficient: 2 },
       ]);
     }
 
@@ -356,6 +376,62 @@ class ApiClient {
     const suffix = query.toString() ? `?${query.toString()}` : "";
 
     return this.request<AcademicModule[]>(`/academic/modules${suffix}`);
+  }
+
+  async getEvaluations(moduleId?: number): Promise<Evaluation[]> {
+    if (MOCK_MODE) {
+      return Promise.resolve([
+        {
+          id: 1,
+          nom: "DS1",
+          type: "devoir",
+          coefficient: 1,
+          bareme_max: 20,
+          date: null,
+          module_id: moduleId || 1,
+        },
+        {
+          id: 2,
+          nom: "TP1",
+          type: "tp",
+          coefficient: 0.5,
+          bareme_max: 20,
+          date: null,
+          module_id: moduleId || 1,
+        },
+      ]);
+    }
+
+    const query = moduleId ? `?module_id=${moduleId}` : "";
+
+    return this.request<Evaluation[]>(`/academic/evaluations${query}`);
+  }
+
+  async getModuleStudents(moduleId: number): Promise<ModuleEtudiant[]> {
+    if (MOCK_MODE) {
+      return Promise.resolve([
+        {
+          id: 4,
+          full_name: "Youssef ALAMI",
+          cne: "E123456789",
+          email: "etudiant1@emsi.ma",
+          taux_absence: 20,
+          moyenne_generale: 12.5,
+        },
+        {
+          id: 5,
+          full_name: "Sara IDRISSI",
+          cne: "E987654321",
+          email: "etudiant2@emsi.ma",
+          taux_absence: 10,
+          moyenne_generale: 14.25,
+        },
+      ]);
+    }
+
+    return this.request<ModuleEtudiant[]>(
+      `/academic/modules/${moduleId}/etudiants`
+    );
   }
 
   // Dashboard

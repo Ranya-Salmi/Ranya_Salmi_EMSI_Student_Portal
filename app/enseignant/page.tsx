@@ -12,7 +12,12 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type AcademicModule, type Alerte, type ModuleStats } from "@/lib/api";
+import {
+  api,
+  type AcademicModule,
+  type Alerte,
+  type ModuleStats,
+} from "@/lib/api";
 import { getUrgenceColor } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
@@ -40,6 +45,10 @@ function formatNumber(value: number | undefined | null, digits = 1) {
   return value.toFixed(digits);
 }
 
+function getModuleCoefficient(module: AcademicModule) {
+  return Number(module.coefficient || 1);
+}
+
 export default function EnseignantDashboardPage() {
   const [modules, setModules] = useState<AcademicModule[]>([]);
   const [moduleStats, setModuleStats] = useState<ModuleStatsMap>({});
@@ -56,7 +65,7 @@ export default function EnseignantDashboardPage() {
       setModules(modulesData);
 
       const statsResults = await Promise.allSettled(
-        modulesData.slice(0, 4).map(async (module) => {
+        modulesData.map(async (module) => {
           const stats = await api.getModuleStats(module.id);
           return [module.id, stats] as const;
         })
@@ -90,25 +99,51 @@ export default function EnseignantDashboardPage() {
     fetchData();
   }, []);
 
-  const averageSuccessRate = useMemo(() => {
-    const values = Object.values(moduleStats)
-      .map((stats) => stats.taux_reussite)
-      .filter((value) => typeof value === "number");
-
-    if (values.length === 0) return null;
-
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
-  }, [moduleStats]);
-
   const averageClassGrade = useMemo(() => {
-    const values = Object.values(moduleStats)
-      .map((stats) => stats.moyenne_classe)
-      .filter((value) => typeof value === "number");
+    let weightedSum = 0;
+    let totalCoeff = 0;
 
-    if (values.length === 0) return null;
+    modules.forEach((module) => {
+      const stats = moduleStats[module.id];
 
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
-  }, [moduleStats]);
+      if (!stats) return;
+
+      const moyenne = Number(stats.moyenne_classe);
+
+      if (Number.isNaN(moyenne) || moyenne <= 0) return;
+
+      const coeff = getModuleCoefficient(module);
+      weightedSum += moyenne * coeff;
+      totalCoeff += coeff;
+    });
+
+    if (totalCoeff === 0) return null;
+
+    return weightedSum / totalCoeff;
+  }, [modules, moduleStats]);
+
+  const averageSuccessRate = useMemo(() => {
+    let weightedSum = 0;
+    let totalCoeff = 0;
+
+    modules.forEach((module) => {
+      const stats = moduleStats[module.id];
+
+      if (!stats) return;
+
+      const taux = Number(stats.taux_reussite);
+
+      if (Number.isNaN(taux)) return;
+
+      const coeff = getModuleCoefficient(module);
+      weightedSum += taux * coeff;
+      totalCoeff += coeff;
+    });
+
+    if (totalCoeff === 0) return null;
+
+    return weightedSum / totalCoeff;
+  }, [modules, moduleStats]);
 
   const stats = {
     modulesCount: modules.length,
@@ -297,7 +332,7 @@ export default function EnseignantDashboardPage() {
                 Modules enseignés
               </CardTitle>
               <CardDescription>
-                Liste des modules récupérés depuis la base de données
+                Moyennes et taux de réussite calculés depuis les notes
               </CardDescription>
             </CardHeader>
 
@@ -328,24 +363,31 @@ export default function EnseignantDashboardPage() {
                             <p className="truncate font-medium">{module.nom}</p>
                             <p className="text-sm text-muted-foreground">
                               {module.code || "Code non défini"}
+                              {module.semestre ? ` • S${module.semestre}` : ""}
                               {module.coefficient
                                 ? ` • Coef. ${module.coefficient}`
                                 : ""}
                             </p>
                           </div>
 
-                          <Badge variant="outline">
-                            Module #{module.id}
-                          </Badge>
+                          <Badge variant="outline">Module #{module.id}</Badge>
                         </div>
 
-                        {statsModule && (
+                        {statsModule ? (
                           <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
                             <div className="rounded-md bg-background p-2">
                               <span className="text-muted-foreground">
                                 Moyenne :{" "}
                               </span>
-                              <span className="font-medium">
+                              <span
+                                className={cn(
+                                  "font-medium",
+                                  statsModule.moyenne_classe < 10 &&
+                                    "text-destructive",
+                                  statsModule.moyenne_classe >= 10 &&
+                                    "text-primary"
+                                )}
+                              >
                                 {formatNumber(statsModule.moyenne_classe)}/20
                               </span>
                             </div>
@@ -358,6 +400,10 @@ export default function EnseignantDashboardPage() {
                                 {formatNumber(statsModule.taux_reussite, 0)}%
                               </span>
                             </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 rounded-md bg-background p-2 text-sm text-muted-foreground">
+                            Aucune note saisie pour ce module
                           </div>
                         )}
                       </div>
@@ -421,7 +467,8 @@ export default function EnseignantDashboardPage() {
                           {alerte.titre}
                         </p>
                         <p className="mt-0.5 line-clamp-1 text-xs opacity-80">
-                          {alerte.etudiant_nom || "Étudiant"} — {alerte.message}
+                          {alerte.etudiant_nom || "Étudiant"} —{" "}
+                          {alerte.message}
                         </p>
                       </div>
                     </div>
