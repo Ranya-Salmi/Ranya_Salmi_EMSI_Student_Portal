@@ -1,111 +1,149 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { 
-  Bell, 
-  AlertTriangle, 
-  Calendar, 
-  TrendingDown,
+import { useEffect, useState } from "react";
+import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { api, type Alerte } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import {
+  AlertTriangle,
+  Bell,
   CheckCircle,
+  CheckCircle2,
+  Clock,
   Info,
-  X
-} from "lucide-react"
+} from "lucide-react";
 
-interface Notification {
-  id: number
-  type: "warning" | "info" | "danger"
-  title: string
-  message: string
-  date: string
-  read: boolean
+function getUrgenceLabel(urgence: Alerte["urgence"]) {
+  if (urgence === "critical") return "Critique";
+  if (urgence === "warning") return "Attention";
+  return "Information";
 }
 
-const mockNotifications: Notification[] = [
-  {
-    id: 1,
-    type: "danger",
-    title: "Seuil d'absences atteint",
-    message: "Vous avez atteint 8 heures d'absences non justifiées ce mois. Veuillez contacter votre chef de filière.",
-    date: "2024-03-15T10:30:00",
-    read: false
-  },
-  {
-    id: 2,
-    type: "warning",
-    title: "Note en dessous de la moyenne",
-    message: "Votre note en Bases de Données (9/20) est en dessous de la moyenne de la classe (12.5/20).",
-    date: "2024-03-14T14:00:00",
-    read: false
-  },
-  {
-    id: 3,
-    type: "info",
-    title: "Nouvelle note disponible",
-    message: "La note du contrôle de Programmation Web a été publiée.",
-    date: "2024-03-13T09:00:00",
-    read: true
-  },
-  {
-    id: 4,
-    type: "warning",
-    title: "Absence enregistrée",
-    message: "Une absence a été enregistrée pour le cours de Mathématiques du 12/03/2024.",
-    date: "2024-03-12T16:00:00",
-    read: true
-  },
-  {
-    id: 5,
-    type: "info",
-    title: "Convocation chef de filière",
-    message: "Vous êtes convoqué pour un entretien le 18/03/2024 à 10h00 au bureau du chef de filière.",
-    date: "2024-03-11T11:00:00",
-    read: true
-  },
-]
+function getUrgenceIcon(urgence: Alerte["urgence"]) {
+  if (urgence === "critical") return AlertTriangle;
+  if (urgence === "warning") return AlertTriangle;
+  return Info;
+}
 
-const typeConfig = {
-  warning: { 
-    icon: AlertTriangle, 
-    color: "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-800",
-    badge: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-  },
-  danger: { 
-    icon: AlertTriangle, 
-    color: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-800",
-    badge: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-  },
-  info: { 
-    icon: Info, 
-    color: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-800",
-    badge: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-  },
+function getUrgenceClasses(urgence: Alerte["urgence"]) {
+  if (urgence === "critical") {
+    return {
+      card: "border-destructive/40 bg-destructive/5",
+      iconBox: "bg-destructive/10 text-destructive",
+      title: "text-destructive",
+      badge: "bg-destructive/10 text-destructive border-destructive/20",
+    };
+  }
+
+  if (urgence === "warning") {
+    return {
+      card: "border-warning/40 bg-warning/5",
+      iconBox: "bg-warning/10 text-warning",
+      title: "text-warning",
+      badge: "bg-warning/10 text-warning border-warning/20",
+    };
+  }
+
+  return {
+    card: "border-primary/30 bg-primary/5",
+    iconBox: "bg-primary/10 text-primary",
+    title: "text-primary",
+    badge: "bg-primary/10 text-primary border-primary/20",
+  };
+}
+
+function formatDate(value: string) {
+  try {
+    return new Date(value).toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return value;
+  }
 }
 
 export default function AlertesEtudiantPage() {
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications)
+  const [alertes, setAlertes] = useState<Alerte[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
 
-  const unreadCount = notifications.filter(n => !n.read).length
-
-  const markAsRead = (id: number) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
-    ))
+  async function fetchAlertes() {
+    try {
+      setError("");
+      const data = await api.getMesAlertes();
+      setAlertes(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de chargement");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const markAllRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })))
-  }
+  useEffect(() => {
+    fetchAlertes();
+  }, []);
 
-  const dismiss = (id: number) => {
-    setNotifications(notifications.filter(n => n.id !== id))
-  }
+  const unreadCount = alertes.filter((alerte) => !alerte.lue).length;
+  const criticalCount = alertes.filter(
+    (alerte) => alerte.urgence === "critical"
+  ).length;
+  const warningCount = alertes.filter(
+    (alerte) => alerte.urgence === "warning"
+  ).length;
+  const infoCount = alertes.filter((alerte) => alerte.urgence === "info").length;
+
+  const markAsRead = async (id: number) => {
+    try {
+      setUpdatingId(id);
+      await api.marquerAlerteLue(id);
+      setAlertes((current) =>
+        current.map((alerte) =>
+          alerte.id === id ? { ...alerte, lue: true } : alerte
+        )
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de mise a jour");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const markAllRead = async () => {
+    const unread = alertes.filter((alerte) => !alerte.lue);
+
+    if (unread.length === 0) return;
+
+    try {
+      setMarkingAll(true);
+      await Promise.all(unread.map((alerte) => api.marquerAlerteLue(alerte.id)));
+      setAlertes((current) =>
+        current.map((alerte) => ({ ...alerte, lue: true }))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de mise a jour");
+    } finally {
+      setMarkingAll(false);
+    }
+  };
 
   return (
-    <DashboardLayout>
+    <DashboardLayout requiredRoles={["etudiant"]}>
       <div className="space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -114,149 +152,238 @@ export default function AlertesEtudiantPage() {
               Notifications et alertes concernant votre parcours
             </p>
           </div>
+
           {unreadCount > 0 && (
-            <Button variant="outline" onClick={markAllRead}>
-              <CheckCircle className="mr-2 h-4 w-4" />
+            <Button
+              variant="outline"
+              onClick={markAllRead}
+              disabled={markingAll}
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
               Tout marquer comme lu
             </Button>
           )}
         </div>
 
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Non lues</CardTitle>
-              <Bell className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{unreadCount}</div>
+        {error && (
+          <Card className="border-destructive/40 bg-destructive/5">
+            <CardContent className="p-4">
+              <p className="text-sm text-destructive">{error}</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Alertes Critiques</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-500">
-                {notifications.filter(n => n.type === "danger").length}
-              </div>
-            </CardContent>
-          </Card>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Total</CardTitle>
-              <Info className="h-4 w-4 text-muted-foreground" />
+              <Bell className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{notifications.length}</div>
+              {loading ? (
+                <Skeleton className="h-8 w-16" />
+              ) : (
+                <div className="text-2xl font-bold">{alertes.length}</div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                alertes recues
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">
+                Non lues
+              </CardTitle>
+              <Clock className="h-4 w-4 text-warning" />
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-8 w-16" />
+              ) : (
+                <div className="text-2xl font-bold text-warning">
+                  {unreadCount}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                en attente de lecture
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">
+                Critiques
+              </CardTitle>
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-8 w-16" />
+              ) : (
+                <div className="text-2xl font-bold text-destructive">
+                  {criticalCount}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                action rapide conseillee
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">
+                Informations
+              </CardTitle>
+              <Info className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-8 w-16" />
+              ) : (
+                <div className="text-2xl font-bold">
+                  {warningCount + infoCount}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                suivi pedagogique
+              </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Notifications List */}
         <Card>
           <CardHeader>
-            <CardTitle>Toutes les notifications</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Liste des alertes
+            </CardTitle>
             <CardDescription>
-              Cliquez sur une notification pour la marquer comme lue
+              Alertes generees par le systeme de suivi pedagogique
             </CardDescription>
           </CardHeader>
+
           <CardContent>
-            {notifications.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Bell className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                <p>Aucune notification</p>
+            {loading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <Skeleton key={index} className="h-24 w-full rounded-xl" />
+                ))}
+              </div>
+            ) : alertes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <CheckCircle className="h-10 w-10 mb-3 text-primary" />
+                <p className="font-medium">Aucune alerte</p>
+                <p className="text-sm">
+                  Vous n&apos;avez aucune notification pour le moment.
+                </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {notifications.map((notification) => {
-                  const config = typeConfig[notification.type]
-                  const Icon = config.icon
-                  
+              <div className="space-y-3">
+                {alertes.map((alerte) => {
+                  const Icon = getUrgenceIcon(alerte.urgence);
+                  const classes = getUrgenceClasses(alerte.urgence);
+
                   return (
                     <div
-                      key={notification.id}
-                      className={`relative p-4 rounded-lg border transition-all cursor-pointer ${config.color} ${
-                        !notification.read ? "ring-2 ring-primary/20" : "opacity-75"
-                      }`}
-                      onClick={() => markAsRead(notification.id)}
+                      key={alerte.id}
+                      className={cn(
+                        "rounded-xl border p-4 transition-colors",
+                        classes.card,
+                        alerte.lue && "opacity-70"
+                      )}
                     >
-                      <div className="flex items-start gap-4">
-                        <div className="p-2 rounded-full bg-background/50">
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-semibold">{notification.title}</h4>
-                            {!notification.read && (
-                              <Badge variant="secondary" className="text-xs">
-                                Nouveau
-                              </Badge>
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex gap-3">
+                          <div
+                            className={cn(
+                              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
+                              classes.iconBox
                             )}
+                          >
+                            <Icon className="h-5 w-5" />
                           </div>
-                          <p className="text-sm opacity-90">{notification.message}</p>
-                          <p className="text-xs mt-2 opacity-70">
-                            {new Date(notification.date).toLocaleDateString("fr-FR", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit"
-                            })}
-                          </p>
+
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className={cn("font-semibold", classes.title)}>
+                                {alerte.titre}
+                              </h3>
+
+                              <Badge
+                                variant="outline"
+                                className={classes.badge}
+                              >
+                                {getUrgenceLabel(alerte.urgence)}
+                              </Badge>
+
+                              {!alerte.lue && (
+                                <Badge className="bg-primary/10 text-primary border-primary/20">
+                                  Nouveau
+                                </Badge>
+                              )}
+                            </div>
+
+                            <p className="text-sm text-muted-foreground">
+                              {alerte.message}
+                            </p>
+
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                              <span>Type: {alerte.type}</span>
+                              <span>{formatDate(alerte.created_at)}</span>
+                            </div>
+                          </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="opacity-50 hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            dismiss(notification.id)
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+
+                        {!alerte.lue && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => markAsRead(alerte.id)}
+                            disabled={updatingId === alerte.id}
+                          >
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            Marquer lu
+                          </Button>
+                        )}
                       </div>
                     </div>
-                  )
+                  );
                 })}
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Tips Card */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Info className="h-5 w-5 text-primary" />
-              Conseils
-            </CardTitle>
+            <CardTitle>Conseils</CardTitle>
+            <CardDescription>
+              Bonnes pratiques pour votre suivi pedagogique
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-primary" />
-                Consultez régulièrement vos alertes pour rester informé
+                Consultez regulierement vos alertes pour rester informe.
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-primary" />
-                En cas d&apos;alerte critique, contactez rapidement votre chef de filière
+                En cas d&apos;alerte critique, contactez rapidement votre chef de
+                filiere.
               </li>
               <li className="flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-primary" />
-                Justifiez vos absences dans les plus brefs délais
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-primary" />
-                N&apos;hésitez pas à demander de l&apos;aide en cas de difficultés
+                Justifiez vos absences dans les plus brefs delais.
               </li>
             </ul>
           </CardContent>
         </Card>
       </div>
     </DashboardLayout>
-  )
+  );
 }
