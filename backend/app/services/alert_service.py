@@ -9,6 +9,10 @@ Sources:
 2. IA-based alerts:
    - risk score computed from ML/fallback predictor
    - features: absences, averages, modules < 10, missing notes, grade evolution
+
+3. Notification dispatch:
+   - in-app alerts are stored in database
+   - email notifications are attempted when SMTP is configured
 """
 from typing import List
 
@@ -18,6 +22,7 @@ from app.config import settings
 from app.models import Alerte, User
 from app.models.user import Role
 from app.services import stats_service
+from app.services.notification_service import send_alert_email
 from app.ml.features import extract_features
 from app.ml.predictor import predict_risk
 
@@ -35,12 +40,27 @@ def _has_unread_alert(db: Session, etudiant_id: int, alert_type: str) -> bool:
     )
 
 
+def _dispatch_notifications(etudiant: User, alertes: List[Alerte]) -> None:
+    """Send notification channels for newly created alerts.
+
+    The database alert is already created before this function is called.
+    Email is sent only if SMTP is configured in the environment.
+    """
+
+    for alerte in alertes:
+        send_alert_email(etudiant, alerte)
+
+
 def generate_threshold_alerts_for_student(db: Session, etudiant: User) -> List[Alerte]:
     """Create threshold and IA-risk alerts for one student.
 
     This function is called after note/absence updates.
     It keeps the old function name to avoid changing notes.py and absences.py.
+
+    Returned alerts are already added to the current SQLAlchemy session.
+    The caller remains responsible for committing the transaction.
     """
+
     created: List[Alerte] = []
 
     if etudiant.role != Role.etudiant:
@@ -70,6 +90,7 @@ def generate_threshold_alerts_for_student(db: Session, etudiant: User) -> List[A
             )
 
             db.add(alerte)
+            db.flush()
             created.append(alerte)
 
     # ---------------- Grade threshold alert ----------------
@@ -90,6 +111,7 @@ def generate_threshold_alerts_for_student(db: Session, etudiant: User) -> List[A
             )
 
             db.add(alerte)
+            db.flush()
             created.append(alerte)
 
     # ---------------- IA risk alert ----------------
@@ -126,6 +148,12 @@ def generate_threshold_alerts_for_student(db: Session, etudiant: User) -> List[A
             )
 
             db.add(alerte)
+            db.flush()
             created.append(alerte)
+
+    # ---------------- Notification dispatch ----------------
+
+    if created:
+        _dispatch_notifications(etudiant, created)
 
     return created
