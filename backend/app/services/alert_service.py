@@ -13,7 +13,9 @@ Sources:
 3. Notification dispatch:
    - in-app alerts are stored in database
    - email notifications are attempted when SMTP is configured
+   - WebSocket notifications are triggered for connected users
 """
+import logging
 from typing import List
 
 from sqlalchemy.orm import Session
@@ -23,8 +25,12 @@ from app.models import Alerte, User
 from app.models.user import Role
 from app.services import stats_service
 from app.services.notification_service import send_alert_email
+from app.api.notifications_ws import notify_alert_created_background
 from app.ml.features import extract_features
 from app.ml.predictor import predict_risk
+
+
+logger = logging.getLogger(__name__)
 
 
 def _has_unread_alert(db: Session, etudiant_id: int, alert_type: str) -> bool:
@@ -43,12 +49,37 @@ def _has_unread_alert(db: Session, etudiant_id: int, alert_type: str) -> bool:
 def _dispatch_notifications(etudiant: User, alertes: List[Alerte]) -> None:
     """Send notification channels for newly created alerts.
 
-    The database alert is already created before this function is called.
-    Email is sent only if SMTP is configured in the environment.
+    The database alert is already created and flushed before this function is called.
+
+    Email:
+        Sent only when SMTP is configured.
+
+    WebSocket:
+        Triggered immediately when an event loop is available.
+        If direct push cannot be scheduled, the WebSocket polling fallback still
+        delivers the alert within a few seconds.
     """
 
     for alerte in alertes:
-        send_alert_email(etudiant, alerte)
+        try:
+            send_alert_email(etudiant, alerte)
+        except Exception as exc:  # pragma: no cover
+            logger.exception(
+                "Email notification failed for alert %s / student %s: %s",
+                alerte.id,
+                etudiant.id,
+                exc,
+            )
+
+        if alerte.id is not None:
+            try:
+                notify_alert_created_background(alerte.id)
+            except Exception as exc:  # pragma: no cover
+                logger.exception(
+                    "WebSocket notification scheduling failed for alert %s: %s",
+                    alerte.id,
+                    exc,
+                )
 
 
 def generate_threshold_alerts_for_student(db: Session, etudiant: User) -> List[Alerte]:

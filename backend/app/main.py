@@ -1,16 +1,16 @@
 """
 FastAPI application entry point.
 
-Wires the routers, CORS, WebSocket notifications, and a startup hook that
+Wires the REST routers, CORS, WebSocket notifications, and a startup hook that
 creates the database schema and seeds the database on first run.
 
-For the PFA demo, Base.metadata.create_all is acceptable.
+For the local PFA demonstration, Base.metadata.create_all is acceptable.
 For a real production deployment, Alembic migrations should be used instead.
 """
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -29,23 +29,42 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _validate_runtime_settings() -> None:
+    """Log deployment warnings without breaking the local development stack."""
+
+    if settings.environment.lower() in {"production", "prod"}:
+        if settings.secret_key in {
+            "dev-secret-change-in-production",
+            "change-me-in-production-very-long-secret",
+        }:
+            logger.warning(
+                "SECURITY WARNING: SECRET_KEY uses a development/default value."
+            )
+
+        if settings.frontend_origin.startswith("http://"):
+            logger.warning(
+                "SECURITY WARNING: FRONTEND_ORIGIN uses HTTP in production: %s",
+                settings.frontend_origin,
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables if they don't exist.
-    logger.info("Creating database schema (if absent)...")
+    _validate_runtime_settings()
+
+    logger.info("Creating database schema if absent...")
     Base.metadata.create_all(bind=engine)
 
-    # Seed if empty.
     db = SessionLocal()
 
     try:
         if db.query(User).count() == 0:
-            logger.info("Database empty - running seed...")
+            logger.info("Database empty - running initial seed...")
 
             from seeds.seed_demo import seed_all
 
             seed_all(db)
-            logger.info("Seed complete.")
+            logger.info("Initial seed complete.")
         else:
             logger.info("Database already populated - skipping seed.")
     finally:
@@ -67,24 +86,25 @@ app = FastAPI(
 )
 
 
-# CORS for the Next.js frontend.
+allowed_origins = [
+    settings.frontend_origin,
+    "http://localhost:3000",
+]
+
+# Avoid duplicates while keeping order.
+allowed_origins = list(dict.fromkeys(allowed_origins))
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.frontend_origin,
-        "http://localhost:3000",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# REST API routes.
 app.include_router(api_router)
-
-# WebSocket real-time notifications.
-# Endpoint: ws://localhost:8001/ws/notifications?token=JWT
 app.include_router(notifications_ws.router)
 
 
@@ -95,7 +115,9 @@ def root():
         "version": "1.0.0",
         "docs": "/docs",
         "openapi": "/openapi.json",
+        "health": "/health",
         "websocket_notifications": "/ws/notifications?token=JWT",
+        "environment": settings.environment,
     }
 
 
@@ -105,8 +127,8 @@ def health():
 
 
 @app.exception_handler(Exception)
-async def unhandled_exception_handler(request, exc):  # pragma: no cover
-    logger.exception("Unhandled exception: %s", exc)
+async def unhandled_exception_handler(request: Request, exc: Exception):  # pragma: no cover
+    logger.exception("Unhandled exception on %s: %s", request.url.path, exc)
 
     return JSONResponse(
         status_code=500,

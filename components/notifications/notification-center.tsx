@@ -23,6 +23,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+type AlertsUpdatedEventDetail = {
+  unread_count?: number;
+  alerts?: Alerte[];
+};
+
 function formatRelativeTime(value?: string) {
   if (!value) return "Date non disponible";
 
@@ -77,6 +82,27 @@ function getUrgenceLabel(urgence: string) {
   return "Information";
 }
 
+function mergeAlerts(current: Alerte[], incoming: Alerte[]) {
+  const byId = new Map<number, Alerte>();
+
+  for (const alert of current) {
+    byId.set(alert.id, alert);
+  }
+
+  for (const alert of incoming) {
+    byId.set(alert.id, {
+      ...byId.get(alert.id),
+      ...alert,
+    });
+  }
+
+  return Array.from(byId.values()).sort((a, b) => {
+    const dateA = new Date(a.created_at || "").getTime() || 0;
+    const dateB = new Date(b.created_at || "").getTime() || 0;
+    return dateB - dateA;
+  });
+}
+
 export function NotificationCenter() {
   const [alertes, setAlertes] = useState<Alerte[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,7 +125,14 @@ export function NotificationCenter() {
   }, [refreshNotifications]);
 
   useEffect(() => {
-    const handleAlertsUpdated = () => {
+    const handleAlertsUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<AlertsUpdatedEventDetail>;
+      const incomingAlerts = customEvent.detail?.alerts || [];
+
+      if (incomingAlerts.length > 0) {
+        setAlertes((current) => mergeAlerts(current, incomingAlerts));
+      }
+
       refreshNotifications();
     };
 
@@ -133,6 +166,14 @@ export function NotificationCenter() {
           alerte.id === alerteId ? { ...alerte, lue: true } : alerte
         )
       );
+
+      window.dispatchEvent(
+        new CustomEvent("emsi:alerts-updated", {
+          detail: {
+            alerts: [],
+          },
+        })
+      );
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -161,6 +202,14 @@ export function NotificationCenter() {
         }))
       );
 
+      window.dispatchEvent(
+        new CustomEvent("emsi:alerts-updated", {
+          detail: {
+            alerts: [],
+          },
+        })
+      );
+
       toast.success("Notifications marquées comme lues");
     } catch (error) {
       toast.error(
@@ -176,6 +225,7 @@ export function NotificationCenter() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
+
           {unreadCount > 0 && (
             <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-destructive-foreground">
               {unreadCount > 9 ? "9+" : unreadCount}
@@ -190,6 +240,7 @@ export function NotificationCenter() {
             <DropdownMenuLabel className="p-0 text-base">
               Notifications
             </DropdownMenuLabel>
+
             <p className="text-xs text-muted-foreground">
               Alertes pédagogiques et informations importantes
             </p>
@@ -211,7 +262,9 @@ export function NotificationCenter() {
           ) : sortedAlertes.length === 0 ? (
             <div className="flex flex-col items-center justify-center px-6 py-12 text-center text-muted-foreground">
               <CheckCircle2 className="mb-3 h-9 w-9 text-success" />
+
               <p className="text-sm font-medium">Aucune notification</p>
+
               <p className="mt-1 text-xs">
                 Les nouvelles alertes apparaîtront ici automatiquement.
               </p>
@@ -242,7 +295,10 @@ export function NotificationCenter() {
                           {alerte.titre}
                         </p>
 
-                        <Badge variant="outline" className="shrink-0 text-[10px]">
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 text-[10px]"
+                        >
                           {getUrgenceLabel(alerte.urgence)}
                         </Badge>
                       </div>
@@ -254,6 +310,12 @@ export function NotificationCenter() {
                       {alerte.etudiant_nom && (
                         <p className="mt-1 text-xs text-muted-foreground">
                           Étudiant : {alerte.etudiant_nom}
+                        </p>
+                      )}
+
+                      {typeof alerte.score_risque === "number" && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Score IA : {alerte.score_risque}/100
                         </p>
                       )}
 
