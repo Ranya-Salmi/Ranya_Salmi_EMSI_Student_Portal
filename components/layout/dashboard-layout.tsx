@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { RealtimeNotifications } from "@/components/realtime-notifications";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,27 +55,118 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/admin", label: "Tableau de bord", icon: LayoutDashboard, roles: ["admin"] },
-  { href: "/admin/utilisateurs", label: "Utilisateurs", icon: Users, roles: ["admin"] },
-  { href: "/admin/audit", label: "Journal d'audit", icon: History, roles: ["admin"] },
-  { href: "/admin/configuration", label: "Configuration", icon: Settings, roles: ["admin"] },
+  {
+    href: "/admin",
+    label: "Tableau de bord",
+    icon: LayoutDashboard,
+    roles: ["admin"],
+  },
+  {
+    href: "/admin/utilisateurs",
+    label: "Utilisateurs",
+    icon: Users,
+    roles: ["admin"],
+  },
+  {
+    href: "/admin/audit",
+    label: "Journal d'audit",
+    icon: History,
+    roles: ["admin"],
+  },
+  {
+    href: "/admin/configuration",
+    label: "Configuration",
+    icon: Settings,
+    roles: ["admin"],
+  },
 
-  { href: "/chef", label: "Tableau de bord", icon: LayoutDashboard, roles: ["chef_filiere"] },
-  { href: "/chef/etudiants", label: "Etudiants", icon: Users, roles: ["chef_filiere"] },
-  { href: "/chef/alertes", label: "Alertes IA", icon: Sparkles, roles: ["chef_filiere"], badge: "IA" },
-  { href: "/chef/statistiques", label: "Statistiques", icon: BarChart3, roles: ["chef_filiere"] },
-  { href: "/chef/pv", label: "PV & Bulletins", icon: FileText, roles: ["chef_filiere"] },
-  { href: "/chef/rapports", label: "Rapports", icon: FileText, roles: ["chef_filiere"] },
+  {
+    href: "/chef",
+    label: "Tableau de bord",
+    icon: LayoutDashboard,
+    roles: ["chef_filiere"],
+  },
+  {
+    href: "/chef/etudiants",
+    label: "Etudiants",
+    icon: Users,
+    roles: ["chef_filiere"],
+  },
+  {
+    href: "/chef/alertes",
+    label: "Alertes IA",
+    icon: Sparkles,
+    roles: ["chef_filiere"],
+    badge: "IA",
+  },
+  {
+    href: "/chef/statistiques",
+    label: "Statistiques",
+    icon: BarChart3,
+    roles: ["chef_filiere"],
+  },
+  {
+    href: "/chef/pv",
+    label: "PV & Bulletins",
+    icon: FileText,
+    roles: ["chef_filiere"],
+  },
+  {
+    href: "/chef/rapports",
+    label: "Rapports",
+    icon: FileText,
+    roles: ["chef_filiere"],
+  },
 
-  { href: "/enseignant", label: "Mes modules", icon: BookOpen, roles: ["enseignant"] },
-  { href: "/enseignant/notes", label: "Saisie notes", icon: ClipboardList, roles: ["enseignant"] },
-  { href: "/enseignant/absences", label: "Saisie absences", icon: Users, roles: ["enseignant"] },
-  { href: "/enseignant/import", label: "Import / Export", icon: FileText, roles: ["enseignant"] },
+  {
+    href: "/enseignant",
+    label: "Mes modules",
+    icon: BookOpen,
+    roles: ["enseignant"],
+  },
+  {
+    href: "/enseignant/notes",
+    label: "Saisie notes",
+    icon: ClipboardList,
+    roles: ["enseignant"],
+  },
+  {
+    href: "/enseignant/absences",
+    label: "Saisie absences",
+    icon: Users,
+    roles: ["enseignant"],
+  },
+  {
+    href: "/enseignant/import",
+    label: "Import / Export",
+    icon: FileText,
+    roles: ["enseignant"],
+  },
 
-  { href: "/etudiant", label: "Mon espace", icon: LayoutDashboard, roles: ["etudiant"] },
-  { href: "/etudiant/notes", label: "Mes notes", icon: ClipboardList, roles: ["etudiant"] },
-  { href: "/etudiant/absences", label: "Mes absences", icon: Users, roles: ["etudiant"] },
-  { href: "/etudiant/alertes", label: "Mes alertes", icon: Bell, roles: ["etudiant"] },
+  {
+    href: "/etudiant",
+    label: "Mon espace",
+    icon: LayoutDashboard,
+    roles: ["etudiant"],
+  },
+  {
+    href: "/etudiant/notes",
+    label: "Mes notes",
+    icon: ClipboardList,
+    roles: ["etudiant"],
+  },
+  {
+    href: "/etudiant/absences",
+    label: "Mes absences",
+    icon: Users,
+    roles: ["etudiant"],
+  },
+  {
+    href: "/etudiant/alertes",
+    label: "Mes alertes",
+    icon: Bell,
+    roles: ["etudiant"],
+  },
 ];
 
 interface DashboardLayoutProps {
@@ -82,7 +174,10 @@ interface DashboardLayoutProps {
   requiredRoles?: Role[];
 }
 
-export function DashboardLayout({ children, requiredRoles }: DashboardLayoutProps) {
+export function DashboardLayout({
+  children,
+  requiredRoles,
+}: DashboardLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -124,6 +219,18 @@ export function DashboardLayout({ children, requiredRoles }: DashboardLayoutProp
     }
   }, [isLoading, isAuthenticated, user, requiredRoles, router]);
 
+  useEffect(() => {
+    const handleAlertsUpdated = () => {
+      checkAuth();
+    };
+
+    window.addEventListener("emsi:alerts-updated", handleAlertsUpdated);
+
+    return () => {
+      window.removeEventListener("emsi:alerts-updated", handleAlertsUpdated);
+    };
+  }, [checkAuth]);
+
   if (isLoading || !isAuthenticated || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -146,7 +253,9 @@ export function DashboardLayout({ children, requiredRoles }: DashboardLayoutProp
     );
   }
 
-  const filteredNavItems = navItems.filter((item) => item.roles.includes(user.role));
+  const filteredNavItems = navItems.filter((item) =>
+    item.roles.includes(user.role)
+  );
 
   const handleLogout = () => {
     logout();
@@ -207,7 +316,9 @@ export function DashboardLayout({ children, requiredRoles }: DashboardLayoutProp
                   </span>
                 )}
 
-                {isActive && <div className="w-1 h-4 rounded-full bg-primary" />}
+                {isActive && (
+                  <div className="w-1 h-4 rounded-full bg-primary" />
+                )}
               </Link>
             );
           })}
@@ -244,6 +355,8 @@ export function DashboardLayout({ children, requiredRoles }: DashboardLayoutProp
 
   return (
     <div className="min-h-screen bg-background">
+      <RealtimeNotifications />
+
       <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:block lg:w-64 border-r border-sidebar-border">
         <SidebarContent />
       </aside>
@@ -271,7 +384,10 @@ export function DashboardLayout({ children, requiredRoles }: DashboardLayoutProp
               <div className="hidden sm:flex items-center gap-2">
                 <Badge
                   variant="outline"
-                  className={cn("font-medium border-0", getRoleColor(user.role))}
+                  className={cn(
+                    "font-medium border-0",
+                    getRoleColor(user.role)
+                  )}
                 >
                   {getRoleLabel(user.role)}
                 </Badge>
@@ -279,8 +395,8 @@ export function DashboardLayout({ children, requiredRoles }: DashboardLayoutProp
                 <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
 
                 <span className="text-sm text-muted-foreground">
-                  {filteredNavItems.find((item) => item.href === pathname)?.label ||
-                    "Dashboard"}
+                  {filteredNavItems.find((item) => item.href === pathname)
+                    ?.label || "Dashboard"}
                 </span>
               </div>
             </div>
@@ -288,7 +404,11 @@ export function DashboardLayout({ children, requiredRoles }: DashboardLayoutProp
             <div className="flex items-center gap-1">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="relative h-9 w-9">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="relative h-9 w-9"
+                  >
                     <Bell className="h-4.5 w-4.5" />
 
                     {alertesNonLues > 0 && (
@@ -325,7 +445,9 @@ export function DashboardLayout({ children, requiredRoles }: DashboardLayoutProp
                         <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
                           <Bell className="h-6 w-6 opacity-50" />
                         </div>
-                        <p className="text-sm font-medium">Aucune notification</p>
+                        <p className="text-sm font-medium">
+                          Aucune notification
+                        </p>
                         <p className="text-xs text-muted-foreground/70">
                           Vous êtes à jour
                         </p>
@@ -379,15 +501,14 @@ export function DashboardLayout({ children, requiredRoles }: DashboardLayoutProp
                                 </p>
 
                                 <p className="text-[10px] text-muted-foreground/60 mt-1.5 uppercase tracking-wide">
-                                  {new Date(alerte.created_at).toLocaleDateString(
-                                    "fr-FR",
-                                    {
-                                      day: "numeric",
-                                      month: "short",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    }
-                                  )}
+                                  {new Date(
+                                    alerte.created_at
+                                  ).toLocaleDateString("fr-FR", {
+                                    day: "numeric",
+                                    month: "short",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
                                 </p>
                               </div>
 
@@ -422,7 +543,9 @@ export function DashboardLayout({ children, requiredRoles }: DashboardLayoutProp
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium">{user.full_name}</p>
-                      <p className="text-xs text-muted-foreground">{user.email}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {user.email}
+                      </p>
                     </div>
                   </DropdownMenuLabel>
 
