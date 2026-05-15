@@ -1,0 +1,12 @@
+.venv
+__pycache__
+**/__pycache__
+.pytest_cache
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.local
+*.log
+.DS_Store
+desktop.ini

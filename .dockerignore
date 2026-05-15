@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.venv
+backend/.venv
+backend/__pycache__
+backend/**/__pycache__
+backend/.pytest_cache
+*.pyc
+.DS_Store
+desktop.ini
+npm-debug.log
+pnpm-debug.log
+yarn-error.log
+.env.local

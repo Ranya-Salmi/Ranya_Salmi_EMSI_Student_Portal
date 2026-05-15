@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Proces-verbal de deliberation</title>
+  <style>
+    @page { size: A4 landscape; margin: 1.5cm; }
+    body { font-family: "DejaVu Sans", Helvetica, Arial, sans-serif; color: #222; font-size: 9pt; }
+    .header { text-align: center; border-bottom: 3px solid #006633; padding-bottom: 8px; margin-bottom: 16px; }
+    .header h1 { color: #006633; margin: 0; font-size: 16pt; }
+    .meta { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 9pt; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 8.5pt; }
+    th, td { border: 1px solid #aaa; padding: 4px 6px; }
+    th { background: #006633; color: white; font-size: 8pt; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .text-center { text-align: center; }
+    .admis { background: #d4edda !important; }
+    .ajourne { background: #f8d7da !important; }
+    .signatures { display: flex; justify-content: space-around; margin-top: 30px; }
+    .sig { text-align: center; width: 30%; }
+    .sig .line { border-top: 1px solid #333; margin-top: 50px; padding-top: 4px; font-size: 8pt; }
+    .footer { font-size: 7pt; color: #888; margin-top: 12px; text-align: center; border-top: 1px solid #ccc; padding-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>PROCES-VERBAL DE DELIBERATION</h1>
+    <p style="margin: 4px 0;">EMSI Centre - {{ promotion.nom }} - Semestre {{ semestre }} - Annee {{ promotion.annee }}</p>
+  </div>
+
+  <div class="meta">
+    <span>Nombre d'etudiants : <strong>{{ etudiants|length }}</strong></span>
+    <span>Admis : <strong>{{ nb_admis }}</strong></span>
+    <span>Ajournes : <strong>{{ nb_ajournes }}</strong></span>
+    <span>Date : {{ date_generation }}</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>CNE</th>
+        <th>Nom complet</th>
+        {% for m in modules %}
+        <th class="text-center">{{ m.code }}</th>
+        {% endfor %}
+        <th class="text-center">Moyenne</th>
+        <th class="text-center">Decision</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in etudiants %}
+      <tr class="{{ 'admis' if e.admis else 'ajourne' }}">
+        <td>{{ loop.index }}</td>
+        <td>{{ e.cne or '-' }}</td>
+        <td>{{ e.full_name }}</td>
+        {% for note in e.notes_modules %}
+        <td class="text-center">{{ "%.2f"|format(note) if note is not none else '-' }}</td>
+        {% endfor %}
+        <td class="text-center"><strong>{{ "%.2f"|format(e.moyenne) if e.moyenne is not none else '-' }}</strong></td>
+        <td class="text-center"><strong>{{ 'ADMIS' if e.admis else 'AJOURNE' }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="signatures">
+    <div class="sig"><div class="line">Chef de filiere</div></div>
+    <div class="sig"><div class="line">Directeur des etudes</div></div>
+    <div class="sig"><div class="line">Date et cachet</div></div>
+  </div>
+
+  <div class="footer">
+    PV genere automatiquement. Hash de controle : {{ hash_controle or 'pending' }}.
+    Identifiant : {{ pv_id or 'preview' }}.
+  </div>
+</body>
+</html>
