@@ -1,104 +1,205 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+  AlertTriangle,
+  Calendar,
+  Clock,
+  Download,
+  FileBarChart,
+  FileText,
+  TrendingUp,
+  Users,
+} from "lucide-react";
+
+import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { 
-  FileText, 
-  Download, 
-  Calendar,
-  Users,
-  TrendingUp,
-  AlertTriangle,
-  Clock,
-  FileBarChart
-} from "lucide-react"
-import { toast } from "sonner"
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { api } from "@/lib/api";
 
-const reportTypes = [
+type ReportTypeId =
+  | "bulletin"
+  | "pv"
+  | "absences"
+  | "statistiques"
+  | "risque"
+  | "suivi";
+
+type ReportField =
+  | "etudiant"
+  | "promotion"
+  | "module"
+  | "semestre"
+  | "periode"
+  | "mois"
+  | "seuil_risque";
+
+type Option = {
+  id: string;
+  label: string;
+};
+
+type GeneratedReport = {
+  id: string;
+  type: string;
+  details: string;
+  date: string;
+  downloadUrl?: string;
+};
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+
+const reportTypes: Array<{
+  id: ReportTypeId;
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  fields: ReportField[];
+}> = [
   {
     id: "bulletin",
-    title: "Bulletin de Notes",
-    description: "Relevé de notes individuel par étudiant",
+    title: "Bulletin de notes",
+    description: "Relevé individuel des notes, moyennes et décisions.",
     icon: FileText,
-    fields: ["etudiant", "semestre"]
+    fields: ["etudiant", "semestre"],
+  },
+  {
+    id: "pv",
+    title: "Procès-verbal de délibération",
+    description: "PV officiel par promotion avec synthèse des résultats.",
+    icon: Users,
+    fields: ["promotion", "semestre"],
   },
   {
     id: "absences",
-    title: "Rapport d'Absences",
-    description: "Récapitulatif des absences par classe ou individuel",
+    title: "Rapport d’absences",
+    description: "Récapitulatif des absences par promotion ou étudiant.",
     icon: Calendar,
-    fields: ["groupe", "periode"]
+    fields: ["promotion", "periode"],
   },
   {
     id: "statistiques",
-    title: "Statistiques de Classe",
-    description: "Moyennes, répartition des notes, comparatifs",
+    title: "Statistiques pédagogiques",
+    description: "Moyennes, taux de réussite et indicateurs par module.",
     icon: TrendingUp,
-    fields: ["groupe", "module", "semestre"]
+    fields: ["promotion", "module", "semestre"],
   },
   {
     id: "risque",
-    title: "Rapport Étudiants à Risque",
-    description: "Liste des profils détectés par l'IA avec indicateurs",
+    title: "Rapport étudiants à risque",
+    description: "Liste des profils détectés par l’IA avec indicateurs.",
     icon: AlertTriangle,
-    fields: ["groupe", "seuil_risque"]
+    fields: ["promotion", "seuil_risque"],
   },
   {
     id: "suivi",
-    title: "Rapport de Suivi Mensuel",
-    description: "Synthèse mensuelle: notes, absences, alertes",
+    title: "Rapport de suivi mensuel",
+    description: "Synthèse mensuelle des notes, absences et alertes.",
     icon: FileBarChart,
-    fields: ["groupe", "mois"]
+    fields: ["promotion", "mois"],
   },
-]
+];
 
-const mockGroupes = [
-  { id: "3IIR-G1", label: "3IIR - Groupe 1" },
-  { id: "3IIR-G2", label: "3IIR - Groupe 2" },
-  { id: "4IIR-G1", label: "4IIR - Groupe 1" },
-  { id: "5IIR-G1", label: "5IIR - Groupe 1" },
-]
+function getToken() {
+  const maybeApi = api as any;
 
-const mockModules = [
-  { id: "MATH", label: "Mathématiques" },
-  { id: "PROG", label: "Programmation" },
-  { id: "BD", label: "Bases de Données" },
-  { id: "RES", label: "Réseaux" },
-  { id: "ALGO", label: "Algorithmique" },
-]
+  if (typeof maybeApi.getToken === "function") {
+    return maybeApi.getToken();
+  }
 
-const mockEtudiants = [
-  { id: "1", label: "El Amrani Youssef" },
-  { id: "2", label: "Bennani Sara" },
-  { id: "3", label: "Chaoui Ahmed" },
-  { id: "4", label: "Idrissi Leila" },
-]
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("emsi_token");
+  }
 
-const recentReports = [
-  { id: 1, type: "Bulletin de Notes", details: "El Amrani Youssef - S1", date: "2024-03-15", status: "ready" },
-  { id: 2, type: "Rapport d'Absences", details: "3IIR-G1 - Mars 2024", date: "2024-03-14", status: "ready" },
-  { id: 3, type: "Statistiques de Classe", details: "4IIR-G1 - Mathématiques", date: "2024-03-13", status: "ready" },
-  { id: 4, type: "Rapport Risque", details: "Tous les groupes", date: "2024-03-12", status: "ready" },
-]
+  return null;
+}
+
+function getFileNameFromResponse(response: Response, fallback: string) {
+  const disposition = response.headers.get("content-disposition");
+
+  if (!disposition) return fallback;
+
+  const match = disposition.match(/filename="?([^"]+)"?/);
+
+  return match?.[1] || fallback;
+}
+
+async function downloadFromUrl(url: string, fileName: string) {
+  const token = getToken();
+
+  const response = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || "Erreur lors du téléchargement");
+  }
+
+  const blob = await response.blob();
+  const blobUrl = window.URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.download = getFileNameFromResponse(response, fileName);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  window.URL.revokeObjectURL(blobUrl);
+}
+
+function mapOption(item: any, fallbackPrefix: string): Option {
+  return {
+    id: String(item.id),
+    label:
+      item.label ||
+      item.nom ||
+      item.name ||
+      item.full_name ||
+      item.titre ||
+      `${fallbackPrefix} #${item.id}`,
+  };
+}
+
+function getTodayIso() {
+  return new Date().toISOString().split("T")[0];
+}
 
 export default function RapportsPage() {
-  const [selectedType, setSelectedType] = useState<string | null>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
+  const [selectedType, setSelectedType] = useState<ReportTypeId | null>(
+    "bulletin"
+  );
+  const [loadingData, setLoadingData] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [promotions, setPromotions] = useState<Option[]>([]);
+  const [modules, setModules] = useState<Option[]>([]);
+  const [etudiants, setEtudiants] = useState<Option[]>([]);
+  const [generatedReports, setGeneratedReports] = useState<GeneratedReport[]>(
+    []
+  );
+
   const [formData, setFormData] = useState({
     etudiant: "",
-    groupe: "",
+    promotion: "",
     module: "",
     semestre: "",
     periode: "",
@@ -106,61 +207,332 @@ export default function RapportsPage() {
     seuil_risque: "50",
     includeCharts: true,
     includeComments: true,
-  })
+  });
 
-  const handleGenerate = async () => {
-    if (!selectedType) return
-    
-    setIsGenerating(true)
-    // Simulate PDF generation
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    setIsGenerating(false)
-    
-    toast.success("Rapport généré avec succès", {
-      description: "Le téléchargement va démarrer automatiquement",
-      action: {
-        label: "Télécharger",
-        onClick: () => {
-          // Simulate download
-          const link = document.createElement("a")
-          link.href = "#"
-          link.download = `rapport_${selectedType}_${new Date().toISOString().split("T")[0]}.pdf`
-          toast.info("Téléchargement simulé - En production, le PDF serait téléchargé")
-        }
+  const selectedReport = reportTypes.find((report) => report.id === selectedType);
+
+  useEffect(() => {
+    async function fetchReferenceData() {
+      setLoadingData(true);
+
+      try {
+        const maybeApi = api as any;
+
+        const [promotionsData, modulesData, etudiantsData] = await Promise.all([
+          typeof maybeApi.getPromotions === "function"
+            ? maybeApi.getPromotions()
+            : typeof maybeApi.listPromotions === "function"
+              ? maybeApi.listPromotions()
+              : Promise.resolve([]),
+
+          typeof maybeApi.getModules === "function"
+            ? maybeApi.getModules()
+            : typeof maybeApi.listModules === "function"
+              ? maybeApi.listModules()
+              : Promise.resolve([]),
+
+          typeof maybeApi.getChefEtudiants === "function"
+            ? maybeApi.getChefEtudiants()
+            : typeof maybeApi.getEtudiants === "function"
+              ? maybeApi.getEtudiants()
+              : typeof maybeApi.getEtudiantsRisque === "function"
+                ? maybeApi.getEtudiantsRisque()
+                : Promise.resolve([]),
+        ]);
+
+        setPromotions(
+          Array.isArray(promotionsData)
+            ? promotionsData.map((item) => mapOption(item, "Promotion"))
+            : []
+        );
+
+        setModules(
+          Array.isArray(modulesData)
+            ? modulesData.map((item) => mapOption(item, "Module"))
+            : []
+        );
+
+        setEtudiants(
+          Array.isArray(etudiantsData)
+            ? etudiantsData.map((item) => {
+                const fullName =
+                  item.full_name ||
+                  item.etudiant_nom ||
+                  item.nom_complet ||
+                  [item.first_name, item.last_name].filter(Boolean).join(" ") ||
+                  [item.prenom, item.nom].filter(Boolean).join(" ");
+
+                return {
+                  id: String(item.id || item.etudiant_id),
+                  label: fullName || `Étudiant #${item.id || item.etudiant_id}`,
+                };
+              })
+            : []
+        );
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Erreur lors du chargement des données"
+        );
+      } finally {
+        setLoadingData(false);
       }
-    })
+    }
+
+    fetchReferenceData();
+  }, []);
+
+  const currentDetails = useMemo(() => {
+    const promotion = promotions.find((item) => item.id === formData.promotion);
+    const module = modules.find((item) => item.id === formData.module);
+    const etudiant = etudiants.find((item) => item.id === formData.etudiant);
+
+    const parts = [
+      etudiant?.label,
+      promotion?.label,
+      module?.label,
+      formData.semestre,
+      formData.periode,
+      formData.mois ? `Mois ${formData.mois}` : "",
+    ].filter(Boolean);
+
+    return parts.length > 0 ? parts.join(" - ") : "Paramètres sélectionnés";
+  }, [formData, promotions, modules, etudiants]);
+
+  const reportStats = useMemo(() => {
+    const month = new Date().getMonth();
+    const year = new Date().getFullYear();
+
+    const thisMonth = generatedReports.filter((report) => {
+      const date = new Date(report.date);
+      return date.getMonth() === month && date.getFullYear() === year;
+    }).length;
+
+    return {
+      thisMonth,
+      total: generatedReports.length,
+      latest:
+        generatedReports.length > 0
+          ? generatedReports[0].type
+          : "Aucun rapport généré",
+    };
+  }, [generatedReports]);
+
+  function validateForm() {
+    if (!selectedReport) {
+      toast.error("Veuillez sélectionner un type de rapport");
+      return false;
+    }
+
+    if (selectedReport.fields.includes("etudiant") && !formData.etudiant) {
+      toast.error("Veuillez sélectionner un étudiant");
+      return false;
+    }
+
+    if (selectedReport.fields.includes("promotion") && !formData.promotion) {
+      toast.error("Veuillez sélectionner une promotion");
+      return false;
+    }
+
+    if (selectedReport.fields.includes("module") && !formData.module) {
+      toast.error("Veuillez sélectionner un module");
+      return false;
+    }
+
+    if (selectedReport.fields.includes("semestre") && !formData.semestre) {
+      toast.error("Veuillez sélectionner un semestre");
+      return false;
+    }
+
+    if (selectedReport.fields.includes("periode") && !formData.periode) {
+      toast.error("Veuillez sélectionner une période");
+      return false;
+    }
+
+    if (selectedReport.fields.includes("mois") && !formData.mois) {
+      toast.error("Veuillez sélectionner un mois");
+      return false;
+    }
+
+    return true;
   }
 
-  const selectedReport = reportTypes.find(r => r.id === selectedType)
+  async function generateBulletin() {
+    const maybeApi = api as any;
+    const etudiantId = Number(formData.etudiant);
+
+    if (typeof maybeApi.generateBulletin === "function") {
+      const result = await maybeApi.generateBulletin(etudiantId);
+
+      if (result?.download_url) {
+        await downloadFromUrl(
+          result.download_url,
+          `bulletin_${etudiantId}_${getTodayIso()}.pdf`
+        );
+      }
+
+      return;
+    }
+
+    if (typeof maybeApi.getBulletinUrl === "function") {
+      await downloadFromUrl(
+        maybeApi.getBulletinUrl(etudiantId),
+        `bulletin_${etudiantId}_${getTodayIso()}.pdf`
+      );
+      return;
+    }
+
+    await downloadFromUrl(
+      `${API_URL}/pdf/bulletin/${etudiantId}`,
+      `bulletin_${etudiantId}_${getTodayIso()}.pdf`
+    );
+  }
+
+  async function generatePv() {
+    const maybeApi = api as any;
+    const promotionId = Number(formData.promotion);
+
+    if (typeof maybeApi.generatePV === "function") {
+      const result = await maybeApi.generatePV(promotionId, {
+        semestre: formData.semestre,
+      });
+
+      if (result?.download_url) {
+        await downloadFromUrl(
+          result.download_url,
+          `pv_promotion_${promotionId}_${getTodayIso()}.pdf`
+        );
+      }
+
+      return;
+    }
+
+    if (typeof maybeApi.getPVUrl === "function") {
+      await downloadFromUrl(
+        maybeApi.getPVUrl(promotionId, formData.semestre),
+        `pv_promotion_${promotionId}_${getTodayIso()}.pdf`
+      );
+      return;
+    }
+
+    await downloadFromUrl(
+      `${API_URL}/pdf/pv/promotion/${promotionId}?semestre=${encodeURIComponent(
+        formData.semestre || ""
+      )}`,
+      `pv_promotion_${promotionId}_${getTodayIso()}.pdf`
+    );
+  }
+
+  async function generateGenericReport() {
+    const maybeApi = api as any;
+
+    if (typeof maybeApi.generateRapport === "function") {
+      const result = await maybeApi.generateRapport({
+        type: selectedType,
+        ...formData,
+      });
+
+      if (result?.download_url) {
+        await downloadFromUrl(
+          result.download_url,
+          `rapport_${selectedType}_${getTodayIso()}.pdf`
+        );
+      }
+
+      return;
+    }
+
+    if (typeof maybeApi.generateReport === "function") {
+      const result = await maybeApi.generateReport({
+        type: selectedType,
+        ...formData,
+      });
+
+      if (result?.download_url) {
+        await downloadFromUrl(
+          result.download_url,
+          `rapport_${selectedType}_${getTodayIso()}.pdf`
+        );
+      }
+
+      return;
+    }
+
+    throw new Error(
+      "Aucun endpoint backend n’est disponible pour ce type de rapport."
+    );
+  }
+
+  const handleGenerate = async () => {
+    if (!selectedType || !selectedReport) return;
+
+    if (!validateForm()) return;
+
+    setIsGenerating(true);
+
+    try {
+      if (selectedType === "bulletin") {
+        await generateBulletin();
+      } else if (selectedType === "pv") {
+        await generatePv();
+      } else {
+        await generateGenericReport();
+      }
+
+      const newReport: GeneratedReport = {
+        id: `${selectedType}-${Date.now()}`,
+        type: selectedReport.title,
+        details: currentDetails,
+        date: new Date().toISOString(),
+      };
+
+      setGeneratedReports((current) => [newReport, ...current].slice(0, 8));
+
+      toast.success("Rapport généré avec succès", {
+        description: "Le téléchargement du document a été lancé.",
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la génération du rapport"
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
-    <DashboardLayout>
+    <DashboardLayout requiredRoles={["chef_filiere"]}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Génération de Rapports</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Génération de rapports
+          </h1>
           <p className="text-muted-foreground">
-            Générez des rapports PDF personnalisés
+            Génération des bulletins, PV et rapports pédagogiques à partir des
+            données enregistrées.
           </p>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Report Types */}
           <div className="lg:col-span-2">
             <Card>
               <CardHeader>
-                <CardTitle>Types de Rapports</CardTitle>
+                <CardTitle>Types de rapports</CardTitle>
                 <CardDescription>
-                  Sélectionnez le type de rapport à générer
+                  Sélectionnez le type de rapport à générer.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {reportTypes.map((report) => {
-                    const Icon = report.icon
-                    const isSelected = selectedType === report.id
-                    
+                    const Icon = report.icon;
+                    const isSelected = selectedType === report.id;
+
                     return (
-                      <Card 
+                      <Card
                         key={report.id}
                         className={`cursor-pointer transition-all hover:border-primary ${
                           isSelected ? "border-primary bg-primary/5" : ""
@@ -169,12 +541,18 @@ export default function RapportsPage() {
                       >
                         <CardHeader className="pb-2">
                           <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg ${
-                              isSelected ? "bg-primary text-primary-foreground" : "bg-muted"
-                            }`}>
+                            <div
+                              className={`p-2 rounded-lg ${
+                                isSelected
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted"
+                              }`}
+                            >
                               <Icon className="h-5 w-5" />
                             </div>
-                            <CardTitle className="text-base">{report.title}</CardTitle>
+                            <CardTitle className="text-base">
+                              {report.title}
+                            </CardTitle>
                           </div>
                         </CardHeader>
                         <CardContent>
@@ -183,183 +561,259 @@ export default function RapportsPage() {
                           </p>
                         </CardContent>
                       </Card>
-                    )
+                    );
                   })}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Configuration */}
             {selectedReport && (
               <Card className="mt-6">
                 <CardHeader>
-                  <CardTitle>Configuration du Rapport</CardTitle>
+                  <CardTitle>Configuration du rapport</CardTitle>
                   <CardDescription>
-                    Personnalisez les paramètres de votre rapport
+                    Les listes sont chargées depuis le backend.
                   </CardDescription>
                 </CardHeader>
+
                 <CardContent className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {selectedReport.fields.includes("etudiant") && (
-                      <div className="space-y-2">
-                        <Label>Étudiant</Label>
-                        <Select
-                          value={formData.etudiant}
-                          onValueChange={(v) => setFormData({ ...formData, etudiant: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner un étudiant" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {mockEtudiants.map((e) => (
-                              <SelectItem key={e.id} value={e.id}>{e.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                  {loadingData ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {selectedReport.fields.includes("etudiant") && (
+                        <div className="space-y-2">
+                          <Label>Étudiant</Label>
+                          <Select
+                            value={formData.etudiant}
+                            onValueChange={(value) =>
+                              setFormData({ ...formData, etudiant: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sélectionner un étudiant" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {etudiants.length === 0 ? (
+                                <SelectItem value="none" disabled>
+                                  Aucun étudiant disponible
+                                </SelectItem>
+                              ) : (
+                                etudiants.map((student) => (
+                                  <SelectItem
+                                    key={student.id}
+                                    value={student.id}
+                                  >
+                                    {student.label}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
-                    {selectedReport.fields.includes("groupe") && (
-                      <div className="space-y-2">
-                        <Label>Groupe</Label>
-                        <Select
-                          value={formData.groupe}
-                          onValueChange={(v) => setFormData({ ...formData, groupe: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner un groupe" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Tous les groupes</SelectItem>
-                            {mockGroupes.map((g) => (
-                              <SelectItem key={g.id} value={g.id}>{g.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                      {selectedReport.fields.includes("promotion") && (
+                        <div className="space-y-2">
+                          <Label>Promotion</Label>
+                          <Select
+                            value={formData.promotion}
+                            onValueChange={(value) =>
+                              setFormData({ ...formData, promotion: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sélectionner une promotion" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {promotions.length === 0 ? (
+                                <SelectItem value="none" disabled>
+                                  Aucune promotion disponible
+                                </SelectItem>
+                              ) : (
+                                promotions.map((promotion) => (
+                                  <SelectItem
+                                    key={promotion.id}
+                                    value={promotion.id}
+                                  >
+                                    {promotion.label}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
-                    {selectedReport.fields.includes("module") && (
-                      <div className="space-y-2">
-                        <Label>Module</Label>
-                        <Select
-                          value={formData.module}
-                          onValueChange={(v) => setFormData({ ...formData, module: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner un module" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Tous les modules</SelectItem>
-                            {mockModules.map((m) => (
-                              <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                      {selectedReport.fields.includes("module") && (
+                        <div className="space-y-2">
+                          <Label>Module</Label>
+                          <Select
+                            value={formData.module}
+                            onValueChange={(value) =>
+                              setFormData({ ...formData, module: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sélectionner un module" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {modules.length === 0 ? (
+                                <SelectItem value="none" disabled>
+                                  Aucun module disponible
+                                </SelectItem>
+                              ) : (
+                                modules.map((module) => (
+                                  <SelectItem key={module.id} value={module.id}>
+                                    {module.label}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
-                    {selectedReport.fields.includes("semestre") && (
-                      <div className="space-y-2">
-                        <Label>Semestre</Label>
-                        <Select
-                          value={formData.semestre}
-                          onValueChange={(v) => setFormData({ ...formData, semestre: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner un semestre" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="S1">Semestre 1</SelectItem>
-                            <SelectItem value="S2">Semestre 2</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                      {selectedReport.fields.includes("semestre") && (
+                        <div className="space-y-2">
+                          <Label>Semestre</Label>
+                          <Select
+                            value={formData.semestre}
+                            onValueChange={(value) =>
+                              setFormData({ ...formData, semestre: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sélectionner un semestre" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="S1">Semestre 1</SelectItem>
+                              <SelectItem value="S2">Semestre 2</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
-                    {selectedReport.fields.includes("periode") && (
-                      <div className="space-y-2">
-                        <Label>Période</Label>
-                        <Select
-                          value={formData.periode}
-                          onValueChange={(v) => setFormData({ ...formData, periode: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner une période" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="semaine">Cette semaine</SelectItem>
-                            <SelectItem value="mois">Ce mois</SelectItem>
-                            <SelectItem value="trimestre">Ce trimestre</SelectItem>
-                            <SelectItem value="semestre">Ce semestre</SelectItem>
-                            <SelectItem value="annee">Cette année</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                      {selectedReport.fields.includes("periode") && (
+                        <div className="space-y-2">
+                          <Label>Période</Label>
+                          <Select
+                            value={formData.periode}
+                            onValueChange={(value) =>
+                              setFormData({ ...formData, periode: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sélectionner une période" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="semaine">
+                                Cette semaine
+                              </SelectItem>
+                              <SelectItem value="mois">Ce mois</SelectItem>
+                              <SelectItem value="trimestre">
+                                Ce trimestre
+                              </SelectItem>
+                              <SelectItem value="semestre">
+                                Ce semestre
+                              </SelectItem>
+                              <SelectItem value="annee">Cette année</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
-                    {selectedReport.fields.includes("mois") && (
-                      <div className="space-y-2">
-                        <Label>Mois</Label>
-                        <Select
-                          value={formData.mois}
-                          onValueChange={(v) => setFormData({ ...formData, mois: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sélectionner un mois" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="01">Janvier</SelectItem>
-                            <SelectItem value="02">Février</SelectItem>
-                            <SelectItem value="03">Mars</SelectItem>
-                            <SelectItem value="04">Avril</SelectItem>
-                            <SelectItem value="05">Mai</SelectItem>
-                            <SelectItem value="06">Juin</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
+                      {selectedReport.fields.includes("mois") && (
+                        <div className="space-y-2">
+                          <Label>Mois</Label>
+                          <Select
+                            value={formData.mois}
+                            onValueChange={(value) =>
+                              setFormData({ ...formData, mois: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sélectionner un mois" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="01">Janvier</SelectItem>
+                              <SelectItem value="02">Février</SelectItem>
+                              <SelectItem value="03">Mars</SelectItem>
+                              <SelectItem value="04">Avril</SelectItem>
+                              <SelectItem value="05">Mai</SelectItem>
+                              <SelectItem value="06">Juin</SelectItem>
+                              <SelectItem value="07">Juillet</SelectItem>
+                              <SelectItem value="08">Août</SelectItem>
+                              <SelectItem value="09">Septembre</SelectItem>
+                              <SelectItem value="10">Octobre</SelectItem>
+                              <SelectItem value="11">Novembre</SelectItem>
+                              <SelectItem value="12">Décembre</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
-                    {selectedReport.fields.includes("seuil_risque") && (
-                      <div className="space-y-2">
-                        <Label>Seuil de Risque Minimum</Label>
-                        <Select
-                          value={formData.seuil_risque}
-                          onValueChange={(v) => setFormData({ ...formData, seuil_risque: v })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="30">30% et plus</SelectItem>
-                            <SelectItem value="50">50% et plus</SelectItem>
-                            <SelectItem value="70">70% et plus (critique)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </div>
+                      {selectedReport.fields.includes("seuil_risque") && (
+                        <div className="space-y-2">
+                          <Label>Seuil de risque minimum</Label>
+                          <Select
+                            value={formData.seuil_risque}
+                            onValueChange={(value) =>
+                              setFormData({
+                                ...formData,
+                                seuil_risque: value,
+                              })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="30">30% et plus</SelectItem>
+                              <SelectItem value="50">50% et plus</SelectItem>
+                              <SelectItem value="70">
+                                70% et plus critique
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex flex-col gap-3 pt-4 border-t">
                     <Label>Options supplémentaires</Label>
+
                     <div className="flex items-center gap-2">
-                      <Checkbox 
+                      <Checkbox
                         id="charts"
                         checked={formData.includeCharts}
-                        onCheckedChange={(checked) => 
-                          setFormData({ ...formData, includeCharts: checked as boolean })
+                        onCheckedChange={(checked) =>
+                          setFormData({
+                            ...formData,
+                            includeCharts: Boolean(checked),
+                          })
                         }
                       />
                       <Label htmlFor="charts" className="font-normal">
                         Inclure les graphiques
                       </Label>
                     </div>
+
                     <div className="flex items-center gap-2">
-                      <Checkbox 
+                      <Checkbox
                         id="comments"
                         checked={formData.includeComments}
-                        onCheckedChange={(checked) => 
-                          setFormData({ ...formData, includeComments: checked as boolean })
+                        onCheckedChange={(checked) =>
+                          setFormData({
+                            ...formData,
+                            includeComments: Boolean(checked),
+                          })
                         }
                       />
                       <Label htmlFor="comments" className="font-normal">
@@ -368,11 +822,11 @@ export default function RapportsPage() {
                     </div>
                   </div>
 
-                  <Button 
-                    className="w-full" 
+                  <Button
+                    className="w-full"
                     size="lg"
                     onClick={handleGenerate}
-                    disabled={isGenerating}
+                    disabled={isGenerating || loadingData}
                   >
                     {isGenerating ? (
                       <>
@@ -391,42 +845,53 @@ export default function RapportsPage() {
             )}
           </div>
 
-          {/* Recent Reports */}
           <div>
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Clock className="h-5 w-5" />
-                  Rapports Récents
+                  Rapports récents
                 </CardTitle>
                 <CardDescription>
-                  Derniers rapports générés
+                  Rapports générés pendant la session actuelle.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {recentReports.map((report) => (
-                    <div 
-                      key={report.id}
-                      className="flex items-start justify-between p-3 rounded-lg bg-muted/50"
-                    >
-                      <div className="space-y-1">
-                        <p className="font-medium text-sm">{report.type}</p>
-                        <p className="text-xs text-muted-foreground">{report.details}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(report.date).toLocaleDateString("fr-FR")}
-                        </p>
+                {generatedReports.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    Aucun rapport généré pour le moment.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {generatedReports.map((report) => (
+                      <div
+                        key={report.id}
+                        className="flex items-start justify-between p-3 rounded-lg bg-muted/50"
+                      >
+                        <div className="space-y-1">
+                          <p className="font-medium text-sm">{report.type}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {report.details}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(report.date).toLocaleDateString("fr-FR", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+
+                        <Badge variant="outline">PDF</Badge>
                       </div>
-                      <Button size="sm" variant="ghost">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
-            {/* Quick Stats */}
             <Card className="mt-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -437,16 +902,30 @@ export default function RapportsPage() {
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Ce mois</span>
-                    <span className="font-medium">24 rapports</span>
+                    <span className="text-sm text-muted-foreground">
+                      Ce mois
+                    </span>
+                    <span className="font-medium">
+                      {reportStats.thisMonth} rapport(s)
+                    </span>
                   </div>
+
                   <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Total année</span>
-                    <span className="font-medium">156 rapports</span>
+                    <span className="text-sm text-muted-foreground">
+                      Total session
+                    </span>
+                    <span className="font-medium">
+                      {reportStats.total} rapport(s)
+                    </span>
                   </div>
+
                   <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Plus fréquent</span>
-                    <span className="font-medium">Bulletins</span>
+                    <span className="text-sm text-muted-foreground">
+                      Dernier type
+                    </span>
+                    <span className="font-medium text-right">
+                      {reportStats.latest}
+                    </span>
                   </div>
                 </div>
               </CardContent>
@@ -455,5 +934,5 @@ export default function RapportsPage() {
         </div>
       </div>
     </DashboardLayout>
-  )
+  );
 }
