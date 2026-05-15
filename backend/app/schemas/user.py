@@ -31,8 +31,8 @@ class UserUpdate(BaseModel):
 
 
 class UserRead(UserBase):
-    created_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+    created_at: Optional[datetime] = None
     id: int
     full_name: str
     is_active: bool
