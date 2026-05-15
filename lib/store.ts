@@ -96,9 +96,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 export function getRoleLabel(role: Role): string {
   const labels: Record<Role, string> = {
     admin: 'Administrateur',
-    chef_filiere: 'Chef de FiliÃ¨re',
+    chef_filiere: 'Chef de filière',
     enseignant: 'Enseignant',
-    etudiant: 'Ã‰tudiant',
+    etudiant: 'Étudiant',
   };
   return labels[role] || role;
 }
@@ -151,5 +151,7 @@ export function getUrgenceColor(urgence: string): string {
       return 'bg-muted text-muted-foreground border-border';
   }
 }
+
+
 
 

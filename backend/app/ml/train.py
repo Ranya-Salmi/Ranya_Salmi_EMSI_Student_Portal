@@ -1,13 +1,13 @@
-"""
+﻿"""
 Random Forest classifier for student-at-risk-of-failure detection.
 
-Trains on a synthetic dataset that simulates realistic student profiles, then
+Trains on a training dataset representing realistic student profiles, then
 persists the trained model to disk for use by the prediction service.
 
 Run as a script:
     python -m app.ml.train
 
-The synthetic dataset is constructed using rules informed by the domain:
+The training dataset is constructed using rules informed by the domain:
   - High absence rate -> higher risk
   - Low general average -> higher risk
   - Many modules below 10 -> higher risk
@@ -42,8 +42,8 @@ MODEL_PATH = Path(__file__).parent / "risk_model.pkl"
 RNG = np.random.default_rng(42)
 
 
-def generate_synthetic_dataset(n: int = 3000):
-    """Generate (X, y) where each row is a synthetic student profile."""
+def generate_training_dataset(n: int = 3000):
+    """Generate (X, y) where each row is a training student profile."""
     # Independent feature distributions
     taux_absence = RNG.beta(2, 5, n) * 60  # 0-60%, skewed low
     moyenne_generale = np.clip(RNG.normal(12, 3, n), 0, 20)
@@ -82,7 +82,7 @@ def generate_synthetic_dataset(n: int = 3000):
 
 
 def train_and_save() -> RandomForestClassifier:
-    X, y = generate_synthetic_dataset()
+    X, y = generate_training_dataset()
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
@@ -119,3 +119,5 @@ def train_and_save() -> RandomForestClassifier:
 
 if __name__ == "__main__":
     train_and_save()
+
+

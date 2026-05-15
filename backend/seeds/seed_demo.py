@@ -1,9 +1,9 @@
-"""
-Seed the database with demo data for the PFA presentation.
+﻿"""
+Seed the database with initial data for the PFA presentation.
 
 Creates:
   - 1 filiere (3IIR) + 1 promotion (3IIR-G2 2025/2026)
-  - 4 demo users matching the frontend mocks (admin / chef / enseignant / etudiant)
+  - 4 initial users used by the frontend authentication flow (admin / chef / enseignant / etudiant)
   - 5 modules + several evaluations
   - 25 fictional students with varied profiles (some at risk)
   - Notes and absences distributed to produce realistic risk scores
@@ -21,7 +21,7 @@ from app.security import hash_password
 
 
 # Fictional student profiles. The "profil" key drives how grades and absences are generated.
-DEMO_STUDENTS = [
+initial_STUDENTS = [
     ("Youssef", "ALAMI", "E123456789", "at_risk"),
     ("Sara", "IDRISSI", "E987654321", "average"),
     ("Imane", "BENNANI", "E456789123", "at_risk"),
@@ -138,7 +138,7 @@ def seed_all(db: Session) -> None:
 
     # ---------- Etudiants ----------
     etudiants: list[tuple[User, str]] = []
-    for i, (prenom, nom, cne, profil) in enumerate(DEMO_STUDENTS, start=1):
+    for i, (prenom, nom, cne, profil) in enumerate(initial_STUDENTS, start=1):
         login_email = f"etudiant{i}@emsi.ma" if i > 1 else "etudiant1@emsi.ma"
         password = "etu2026"
         etu = User(
@@ -229,3 +229,5 @@ if __name__ == "__main__":
             print("Base deja peuplee.")
     finally:
         db.close()
+
+
