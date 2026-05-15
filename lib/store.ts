@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { api, type User, type Role, type Alerte } from './api';
 
 interface AuthState {
@@ -46,7 +46,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (typeof window !== 'undefined') {
       localStorage.removeItem('emsi_user');
       localStorage.removeItem('emsi_token');
-      localStorage.removeItem('emsi_mock_user');
     }
     set({ user: null, isAuthenticated: false, isLoading: false, alertes: [], alertesNonLues: 0 });
   },
@@ -97,9 +96,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 export function getRoleLabel(role: Role): string {
   const labels: Record<Role, string> = {
     admin: 'Administrateur',
-    chef_filiere: 'Chef de Filière',
+    chef_filiere: 'Chef de FiliÃ¨re',
     enseignant: 'Enseignant',
-    etudiant: 'Étudiant',
+    etudiant: 'Ã‰tudiant',
   };
   return labels[role] || role;
 }
@@ -152,3 +151,5 @@ export function getUrgenceColor(urgence: string): string {
       return 'bg-muted text-muted-foreground border-border';
   }
 }
+
+

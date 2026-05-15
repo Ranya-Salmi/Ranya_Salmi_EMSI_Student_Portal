@@ -1,64 +1,6 @@
 // API configuration and helper functions for EMSI Portail
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
-// Mock mode is disabled by default.
-// It is only enabled if NEXT_PUBLIC_MOCK_MODE=true.
-const MOCK_MODE = process.env.NEXT_PUBLIC_MOCK_MODE === "true";
-
-// Mock users for testing only when NEXT_PUBLIC_MOCK_MODE=true
-const MOCK_USERS: Record<string, { password: string; user: User }> = {
-  "admin@emsi.ma": {
-    password: "admin2026",
-    user: {
-      id: 1,
-      email: "admin@emsi.ma",
-      role: "admin",
-      first_name: "Admin",
-      last_name: "EMSI",
-      full_name: "Admin EMSI",
-      is_active: true,
-    },
-  },
-  "chef.iir@emsi.ma": {
-    password: "chef2026",
-    user: {
-      id: 2,
-      email: "chef.iir@emsi.ma",
-      role: "chef_filiere",
-      first_name: "Mohammed",
-      last_name: "BENALI",
-      full_name: "Mohammed BENALI",
-      is_active: true,
-    },
-  },
-  "prof.analyse@emsi.ma": {
-    password: "prof2026",
-    user: {
-      id: 3,
-      email: "prof.analyse@emsi.ma",
-      role: "enseignant",
-      first_name: "Fatima",
-      last_name: "ZAHRA",
-      full_name: "Fatima ZAHRA",
-      is_active: true,
-    },
-  },
-  "etudiant1@emsi.ma": {
-    password: "etu2026",
-    user: {
-      id: 4,
-      email: "etudiant1@emsi.ma",
-      role: "etudiant",
-      first_name: "Youssef",
-      last_name: "ALAMI",
-      full_name: "Youssef ALAMI",
-      cne: "E123456789",
-      promotion_id: 1,
-      is_active: true,
-    },
-  },
-};
-
 export type Role = "admin" | "chef_filiere" | "enseignant" | "etudiant";
 
 export interface User {
@@ -87,9 +29,27 @@ export interface AcademicModule {
   nom: string;
   code?: string | null;
   coefficient?: number | null;
-  semestre?: number | null;
+  semestre?: number | string | null;
   promotion_id?: number | null;
   enseignant_id?: number | null;
+  promotion_nom?: string | null;
+  filiere_nom?: string | null;
+  groupes?: string[];
+  heures_total?: number | null;
+}
+
+export interface Filiere {
+  id: number;
+  nom: string;
+  description?: string | null;
+}
+
+export interface Promotion {
+  id: number;
+  nom: string;
+  annee_universitaire?: string | null;
+  filiere_id?: number | null;
+  filiere_nom?: string | null;
 }
 
 export interface ModuleEtudiant {
@@ -115,11 +75,13 @@ export interface Alerte {
   id: number;
   etudiant_id: number;
   etudiant_nom?: string;
+  etudiant_email?: string;
   type: string;
-  urgence: "info" | "warning" | "critical";
+  urgence: "info" | "warning" | "danger" | "critical";
   titre: string;
   message: string;
   lue: boolean;
+  score_risque?: number | null;
   created_at: string;
 }
 
@@ -150,6 +112,11 @@ export interface ModuleStats {
   moyenne_classe: number;
   taux_reussite: number;
   ecart_type: number;
+  nombre_etudiants?: number;
+  taux_absence?: number;
+  heures_effectuees?: number;
+  heures_total?: number;
+  prochain_cours?: string | null;
   distribution: {
     "0-5": number;
     "5-10": number;
@@ -180,6 +147,8 @@ export interface Absence {
   module_id: number;
   module_nom: string;
   date_cours: string;
+  date?: string;
+  duree_heures?: number;
   justifiee: boolean;
   statut: string;
   motif_justification?: string;
@@ -199,6 +168,7 @@ export interface RecapEtudiant {
     score: number;
     niveau: string;
     couleur: string;
+    source?: string;
   } | null;
 }
 
@@ -228,7 +198,6 @@ class ApiClient {
       } else {
         localStorage.removeItem("emsi_token");
         localStorage.removeItem("emsi_user");
-        localStorage.removeItem("emsi_mock_user");
       }
     }
   }
@@ -266,7 +235,7 @@ class ApiClient {
     if (!response.ok) {
       const error = await response
         .json()
-        .catch(() => ({ detail: "Erreur reseau" }));
+        .catch(() => ({ detail: "Erreur réseau" }));
 
       throw new Error(error.detail || `HTTP ${response.status}`);
     }
@@ -278,91 +247,58 @@ class ApiClient {
     return response.json();
   }
 
-  // Auth
-  async login(email: string, password: string): Promise<LoginResponse> {
-    if (MOCK_MODE) {
-      return this.mockLogin(email, password);
+  private async fileRequest<T>(
+    endpoint: string,
+    formData: FormData
+  ): Promise<T> {
+    const token = this.getToken();
+
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ detail: "Erreur import" }));
+
+      throw new Error(error.detail || `HTTP ${response.status}`);
     }
 
+    return response.json();
+  }
+
+  // Auth
+  async login(email: string, password: string): Promise<LoginResponse> {
     return this.request<LoginResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
   }
 
-  private mockLogin(email: string, password: string): Promise<LoginResponse> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const mockUser = MOCK_USERS[email.toLowerCase()];
-
-        if (!mockUser) {
-          reject(new Error("Email ou mot de passe incorrect"));
-          return;
-        }
-
-        if (mockUser.password !== password) {
-          reject(new Error("Email ou mot de passe incorrect"));
-          return;
-        }
-
-        if (typeof window !== "undefined") {
-          localStorage.setItem("emsi_mock_user", JSON.stringify(mockUser.user));
-        }
-
-        resolve({
-          access_token: `mock_token_${mockUser.user.id}_${Date.now()}`,
-          role: mockUser.user.role,
-          user_id: mockUser.user.id,
-          full_name: mockUser.user.full_name,
-        });
-      }, 500);
-    });
-  }
-
   async me(): Promise<User> {
-    if (MOCK_MODE) {
-      return this.mockMe();
-    }
-
     return this.request<User>("/auth/me");
   }
 
-  private mockMe(): Promise<User> {
-    return new Promise((resolve, reject) => {
-      if (typeof window === "undefined") {
-        reject(new Error("Non authentifie"));
-        return;
-      }
-
-      const storedUser = localStorage.getItem("emsi_mock_user");
-
-      if (!storedUser) {
-        reject(new Error("Non authentifie"));
-        return;
-      }
-
-      try {
-        resolve(JSON.parse(storedUser) as User);
-      } catch {
-        reject(new Error("Session invalide"));
-      }
-    });
+  // Academic
+  async getFilieres(): Promise<Filiere[]> {
+    return this.request<Filiere[]>("/academic/filieres");
   }
 
-  // Academic
+  async getPromotions(): Promise<Promotion[]> {
+    return this.request<Promotion[]>("/academic/promotions");
+  }
+
+  async listPromotions(): Promise<Promotion[]> {
+    return this.getPromotions();
+  }
+
   async getModules(params?: {
     promotion_id?: number;
     enseignant_id?: number;
   }): Promise<AcademicModule[]> {
-    if (MOCK_MODE) {
-      return Promise.resolve([
-        { id: 1, nom: "Analyse Numérique S2", code: "MATH301", coefficient: 3 },
-        { id: 2, nom: "Base de données avancées", code: "INFO302", coefficient: 4 },
-        { id: 3, nom: "Réseaux et Protocoles", code: "NET303", coefficient: 3 },
-        { id: 4, nom: "Génie Logiciel", code: "GL304", coefficient: 2 },
-      ]);
-    }
-
     const query = new URLSearchParams();
 
     if (params?.promotion_id) {
@@ -378,57 +314,20 @@ class ApiClient {
     return this.request<AcademicModule[]>(`/academic/modules${suffix}`);
   }
 
+  async getMesModules(): Promise<AcademicModule[]> {
+    return this.getModules();
+  }
+
+  async getTeacherModules(): Promise<AcademicModule[]> {
+    return this.getModules();
+  }
+
   async getEvaluations(moduleId?: number): Promise<Evaluation[]> {
-    if (MOCK_MODE) {
-      return Promise.resolve([
-        {
-          id: 1,
-          nom: "DS1",
-          type: "devoir",
-          coefficient: 1,
-          bareme_max: 20,
-          date: null,
-          module_id: moduleId || 1,
-        },
-        {
-          id: 2,
-          nom: "TP1",
-          type: "tp",
-          coefficient: 0.5,
-          bareme_max: 20,
-          date: null,
-          module_id: moduleId || 1,
-        },
-      ]);
-    }
-
     const query = moduleId ? `?module_id=${moduleId}` : "";
-
     return this.request<Evaluation[]>(`/academic/evaluations${query}`);
   }
 
   async getModuleStudents(moduleId: number): Promise<ModuleEtudiant[]> {
-    if (MOCK_MODE) {
-      return Promise.resolve([
-        {
-          id: 4,
-          full_name: "Youssef ALAMI",
-          cne: "E123456789",
-          email: "etudiant1@emsi.ma",
-          taux_absence: 20,
-          moyenne_generale: 12.5,
-        },
-        {
-          id: 5,
-          full_name: "Sara IDRISSI",
-          cne: "E987654321",
-          email: "etudiant2@emsi.ma",
-          taux_absence: 10,
-          moyenne_generale: 14.25,
-        },
-      ]);
-    }
-
     return this.request<ModuleEtudiant[]>(
       `/academic/modules/${moduleId}/etudiants`
     );
@@ -436,131 +335,76 @@ class ApiClient {
 
   // Dashboard
   async getEtudiantsRisque(filiereId?: number): Promise<EtudiantRisque[]> {
-    if (MOCK_MODE) {
-      return Promise.resolve([
-        {
-          id: 4,
-          full_name: "Youssef ALAMI",
-          cne: "E123456789",
-          email: "youssef.alami@emsi.ma",
-          score: 78,
-          niveau_risque: "eleve",
-          couleur_alerte: "red",
-          moyenne_generale: 8.5,
-          taux_absence: 25,
-        },
-        {
-          id: 5,
-          full_name: "Sara IDRISSI",
-          cne: "E987654321",
-          email: "sara.idrissi@emsi.ma",
-          score: 55,
-          niveau_risque: "modere",
-          couleur_alerte: "orange",
-          moyenne_generale: 11.2,
-          taux_absence: 15,
-        },
-        {
-          id: 8,
-          full_name: "Imane BENNANI",
-          cne: "E456789123",
-          email: "imane.bennani@emsi.ma",
-          score: 82,
-          niveau_risque: "eleve",
-          couleur_alerte: "red",
-          moyenne_generale: 7.8,
-          taux_absence: 30,
-        },
-        {
-          id: 9,
-          full_name: "Omar ZIANI",
-          cne: "E321654987",
-          email: "omar.ziani@emsi.ma",
-          score: 45,
-          niveau_risque: "modere",
-          couleur_alerte: "orange",
-          moyenne_generale: 12.5,
-          taux_absence: 10,
-        },
-        {
-          id: 10,
-          full_name: "Leila FASSI",
-          cne: "E789123456",
-          email: "leila.fassi@emsi.ma",
-          score: 25,
-          niveau_risque: "faible",
-          couleur_alerte: "green",
-          moyenne_generale: 14.2,
-          taux_absence: 5,
-        },
-      ]);
-    }
-
     const params = filiereId ? `?filiere_id=${filiereId}` : "";
-
     return this.request<EtudiantRisque[]>(
       `/dashboard/etudiants-risque${params}`
     );
   }
 
+  async getChefEtudiants(): Promise<EtudiantRisque[]> {
+    return this.getEtudiantsRisque();
+  }
+
+  async getEtudiants(): Promise<EtudiantRisque[]> {
+    return this.getEtudiantsRisque();
+  }
+
   async getKPIs(filiereId?: number): Promise<KPIs> {
-    if (MOCK_MODE) {
-      return Promise.resolve({
-        nombre_etudiants: 156,
-        moyenne_generale_filiere: 12.8,
-        taux_reussite: 85,
-        taux_absence_moyen: 8.5,
-        etudiants_risque_eleve: 12,
-        nombre_alertes_non_lues: 5,
-      });
-    }
-
     const params = filiereId ? `?filiere_id=${filiereId}` : "";
-
     return this.request<KPIs>(`/dashboard/kpis${params}`);
   }
 
   async getModuleStats(moduleId: number): Promise<ModuleStats> {
-    if (MOCK_MODE) {
-      return Promise.resolve({
-        module_id: moduleId,
-        module_nom: "Analyse de donnees",
-        moyenne_classe: 13.5,
-        taux_reussite: 88,
-        ecart_type: 2.8,
-        distribution: {
-          "0-5": 2,
-          "5-10": 5,
-          "10-12": 12,
-          "12-14": 15,
-          "14-16": 8,
-          "16-20": 3,
-        },
-      });
-    }
-
     return this.request<ModuleStats>(`/dashboard/module/${moduleId}/stats`);
   }
 
+  async getEnseignantModuleStats(moduleId: number): Promise<ModuleStats> {
+    return this.getModuleStats(moduleId);
+  }
+
   async getMesAlertes(lues?: boolean): Promise<Alerte[]> {
-    if (MOCK_MODE) {
-      return Promise.resolve([]);
-    }
-
     const params = lues !== undefined ? `?lues=${lues}` : "";
-
     return this.request<Alerte[]>(`/dashboard/mes-alertes${params}`);
+  }
+
+  async getAlertes(lues?: boolean): Promise<Alerte[]> {
+    return this.getMesAlertes(lues);
   }
 
   async marquerAlerteLue(
     alerteId: number
   ): Promise<{ id: number; lue: boolean }> {
-    if (MOCK_MODE) {
-      return Promise.resolve({ id: alerteId, lue: true });
-    }
-
     return this.request(`/dashboard/alertes/${alerteId}/lue`, {
       method: "PATCH",
+    });
+  }
+
+  async markAlerteLue(
+    alerteId: number
+  ): Promise<{ id: number; lue: boolean }> {
+    return this.marquerAlerteLue(alerteId);
+  }
+
+  async createAlerte(data: {
+    etudiant_id: number;
+    type: string;
+    urgence: string;
+    titre: string;
+    message: string;
+  }): Promise<Alerte> {
+    return this.request<Alerte>("/dashboard/alertes", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async sendStudentMessage(etudiantId: number, message: string): Promise<Alerte> {
+    return this.createAlerte({
+      etudiant_id: etudiantId,
+      type: "message",
+      urgence: "info",
+      titre: "Message du chef de filière",
+      message,
     });
   }
 
@@ -616,218 +460,29 @@ class ApiClient {
 
   // Etudiant
   async getRecapEtudiant(): Promise<RecapEtudiant> {
-    if (MOCK_MODE) {
-      return Promise.resolve({
-        etudiant: {
-          id: 4,
-          cne: "E123456789",
-          full_name: "Youssef ALAMI",
-          email: "etudiant1@emsi.ma",
-        },
-        notes: [
-          {
-            id: 1,
-            etudiant_id: 4,
-            evaluation_id: 1,
-            evaluation_nom: "Controle 1",
-            module_nom: "Bases de Donnees",
-            module_id: 1,
-            valeur: 14,
-            coefficient: 1,
-            bareme_max: 20,
-            date: "2026-03-10",
-            statut: "validee",
-          },
-          {
-            id: 2,
-            etudiant_id: 4,
-            evaluation_id: 2,
-            evaluation_nom: "Projet",
-            module_nom: "Programmation Web",
-            module_id: 2,
-            valeur: 16,
-            coefficient: 2,
-            bareme_max: 20,
-            date: "2026-03-18",
-            statut: "validee",
-          },
-          {
-            id: 3,
-            etudiant_id: 4,
-            evaluation_id: 3,
-            evaluation_nom: "Controle 2",
-            module_nom: "Mathematiques",
-            module_id: 3,
-            valeur: 12.5,
-            coefficient: 1,
-            bareme_max: 20,
-            date: "2026-03-22",
-            statut: "validee",
-          },
-        ],
-        absences: [
-          {
-            id: 1,
-            etudiant_id: 4,
-            module_id: 1,
-            module_nom: "Mathematiques",
-            date_cours: "2026-03-12",
-            justifiee: false,
-            statut: "non justifiee",
-            motif_justification: undefined,
-          },
-          {
-            id: 2,
-            etudiant_id: 4,
-            module_id: 2,
-            module_nom: "Programmation Web",
-            date_cours: "2026-03-18",
-            justifiee: true,
-            statut: "justifiee",
-            motif_justification: "Certificat medical",
-          },
-          {
-            id: 3,
-            etudiant_id: 4,
-            module_id: 3,
-            module_nom: "Bases de Donnees",
-            date_cours: "2026-03-20",
-            justifiee: false,
-            statut: "non justifiee",
-            motif_justification: undefined,
-          },
-        ],
-        alertes: [
-          {
-            id: 1,
-            etudiant_id: 4,
-            etudiant_nom: "Youssef ALAMI",
-            type: "absence",
-            urgence: "critical",
-            titre: "Seuil d'absences atteint",
-            message:
-              "Vous avez atteint 8 heures d'absences non justifiees ce mois. Veuillez contacter votre chef de filiere.",
-            lue: false,
-            created_at: "2026-03-15T10:30:00.000Z",
-          },
-          {
-            id: 2,
-            etudiant_id: 4,
-            etudiant_nom: "Youssef ALAMI",
-            type: "note",
-            urgence: "warning",
-            titre: "Note en dessous de la moyenne",
-            message:
-              "Votre note en Bases de Donnees est en dessous de la moyenne de la classe.",
-            lue: false,
-            created_at: "2026-03-14T14:00:00.000Z",
-          },
-          {
-            id: 3,
-            etudiant_id: 4,
-            etudiant_nom: "Youssef ALAMI",
-            type: "note",
-            urgence: "info",
-            titre: "Nouvelle note disponible",
-            message:
-              "La note du controle de Programmation Web a ete publiee.",
-            lue: true,
-            created_at: "2026-03-13T09:00:00.000Z",
-          },
-        ],
-        score_risque: {
-          score: 25,
-          niveau: "faible",
-          couleur: "green",
-        },
-      });
-    }
-
     return this.request<RecapEtudiant>("/dashboard/etudiant/me/recap");
+  }
+
+  async getEtudiantRecap(etudiantId: number): Promise<RecapEtudiant> {
+    return this.request<RecapEtudiant>(
+      `/dashboard/etudiant/${etudiantId}/recap`
+    );
+  }
+
+  async getStudentRecap(etudiantId: number): Promise<RecapEtudiant> {
+    return this.getEtudiantRecap(etudiantId);
+  }
+
+  async getChefEtudiantRecap(etudiantId: number): Promise<RecapEtudiant> {
+    return this.getEtudiantRecap(etudiantId);
+  }
+
+  async getEtudiantDetails(etudiantId: number): Promise<RecapEtudiant> {
+    return this.getEtudiantRecap(etudiantId);
   }
 
   // Admin
   async getUsers(): Promise<User[]> {
-    if (MOCK_MODE) {
-      return Promise.resolve([
-        {
-          id: 1,
-          email: "admin@emsi.ma",
-          role: "admin",
-          first_name: "Admin",
-          last_name: "EMSI",
-          full_name: "Admin EMSI",
-          is_active: true,
-        },
-        {
-          id: 2,
-          email: "chef.iir@emsi.ma",
-          role: "chef_filiere",
-          first_name: "Mohammed",
-          last_name: "BENALI",
-          full_name: "Mohammed BENALI",
-          is_active: true,
-        },
-        {
-          id: 3,
-          email: "prof.analyse@emsi.ma",
-          role: "enseignant",
-          first_name: "Fatima",
-          last_name: "ZAHRA",
-          full_name: "Fatima ZAHRA",
-          is_active: true,
-        },
-        {
-          id: 4,
-          email: "etudiant1@emsi.ma",
-          role: "etudiant",
-          first_name: "Youssef",
-          last_name: "ALAMI",
-          full_name: "Youssef ALAMI",
-          cne: "E123456789",
-          is_active: true,
-        },
-        {
-          id: 5,
-          email: "etudiant2@emsi.ma",
-          role: "etudiant",
-          first_name: "Sara",
-          last_name: "IDRISSI",
-          full_name: "Sara IDRISSI",
-          cne: "E987654321",
-          is_active: true,
-        },
-        {
-          id: 6,
-          email: "prof.math@emsi.ma",
-          role: "enseignant",
-          first_name: "Ahmed",
-          last_name: "TAZI",
-          full_name: "Ahmed TAZI",
-          is_active: true,
-        },
-        {
-          id: 7,
-          email: "chef.cc@emsi.ma",
-          role: "chef_filiere",
-          first_name: "Karim",
-          last_name: "MOUSSAOUI",
-          full_name: "Karim MOUSSAOUI",
-          is_active: true,
-        },
-        {
-          id: 8,
-          email: "etudiant3@emsi.ma",
-          role: "etudiant",
-          first_name: "Imane",
-          last_name: "BENNANI",
-          full_name: "Imane BENNANI",
-          cne: "E456789123",
-          is_active: false,
-        },
-      ]);
-    }
-
     return this.request<User[]>("/admin/users");
   }
 
@@ -841,19 +496,6 @@ class ApiClient {
     promotion_id?: number;
     filiere_dirigee_id?: number;
   }): Promise<User> {
-    if (MOCK_MODE) {
-      return Promise.resolve({
-        id: Math.floor(Math.random() * 1000) + 100,
-        email: userData.email,
-        role: userData.role,
-        first_name: userData.first_name,
-        last_name: userData.last_name,
-        full_name: `${userData.first_name} ${userData.last_name}`,
-        cne: userData.cne,
-        is_active: true,
-      });
-    }
-
     return this.request<User>("/admin/users", {
       method: "POST",
       body: JSON.stringify(userData),
@@ -861,18 +503,6 @@ class ApiClient {
   }
 
   async updateUser(userId: number, data: Partial<User>): Promise<User> {
-    if (MOCK_MODE) {
-      return Promise.resolve({
-        id: userId,
-        email: data.email || "user@emsi.ma",
-        role: data.role || "etudiant",
-        first_name: data.first_name || "User",
-        last_name: data.last_name || "EMSI",
-        full_name: `${data.first_name || "User"} ${data.last_name || "EMSI"}`,
-        is_active: data.is_active ?? true,
-      });
-    }
-
     return this.request<User>(`/admin/users/${userId}`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -882,10 +512,6 @@ class ApiClient {
   async deactivateUser(
     userId: number
   ): Promise<{ id: number; is_active: boolean }> {
-    if (MOCK_MODE) {
-      return Promise.resolve({ id: userId, is_active: false });
-    }
-
     return this.request(`/admin/users/${userId}`, {
       method: "DELETE",
     });
@@ -898,76 +524,6 @@ class ApiClient {
     user_id?: number;
     limit?: number;
   }): Promise<AuditLog[]> {
-    if (MOCK_MODE) {
-      return Promise.resolve([
-        {
-          id: 1,
-          user_id: 3,
-          user_email: "prof.analyse@emsi.ma",
-          table_name: "notes",
-          record_id: 15,
-          action: "update",
-          ancienne_valeur: { valeur: 12 },
-          nouvelle_valeur: { valeur: 14 },
-          raison_modification: "Correction erreur saisie",
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-          ip_adresse: "192.168.1.100",
-        },
-        {
-          id: 2,
-          user_id: 3,
-          user_email: "prof.analyse@emsi.ma",
-          table_name: "absences",
-          record_id: 42,
-          action: "create",
-          ancienne_valeur: null,
-          nouvelle_valeur: { etudiant_id: 4, justifiee: false },
-          raison_modification: null,
-          timestamp: new Date(Date.now() - 7200000).toISOString(),
-          ip_adresse: "192.168.1.100",
-        },
-        {
-          id: 3,
-          user_id: 1,
-          user_email: "admin@emsi.ma",
-          table_name: "users",
-          record_id: 8,
-          action: "update",
-          ancienne_valeur: { is_active: true },
-          nouvelle_valeur: { is_active: false },
-          raison_modification: "Desactivation compte",
-          timestamp: new Date(Date.now() - 86400000).toISOString(),
-          ip_adresse: "192.168.1.1",
-        },
-        {
-          id: 4,
-          user_id: 6,
-          user_email: "prof.math@emsi.ma",
-          table_name: "notes",
-          record_id: 22,
-          action: "create",
-          ancienne_valeur: null,
-          nouvelle_valeur: { valeur: 16, etudiant_id: 5 },
-          raison_modification: null,
-          timestamp: new Date(Date.now() - 172800000).toISOString(),
-          ip_adresse: "192.168.1.105",
-        },
-        {
-          id: 5,
-          user_id: 3,
-          user_email: "prof.analyse@emsi.ma",
-          table_name: "absences",
-          record_id: 38,
-          action: "update",
-          ancienne_valeur: { justifiee: false },
-          nouvelle_valeur: { justifiee: true },
-          raison_modification: "Justificatif medical recu",
-          timestamp: new Date(Date.now() - 259200000).toISOString(),
-          ip_adresse: "192.168.1.100",
-        },
-      ]);
-    }
-
     const params = new URLSearchParams();
 
     if (filters?.table_name) params.set("table_name", filters.table_name);
@@ -996,9 +552,34 @@ class ApiClient {
     });
   }
 
+  async generateBulletin(
+    etudiantId: number,
+    semestre: number = 2
+  ): Promise<{
+    bulletin_id: number;
+    decision: string;
+    moyenne_generale: number;
+    chemin_fichier: string;
+    download_url: string;
+  }> {
+    return this.genererBulletin(etudiantId, semestre);
+  }
+
+  async generateBulletinEtudiant(): Promise<{
+    bulletin_id: number;
+    decision: string;
+    moyenne_generale: number;
+    chemin_fichier: string;
+    download_url: string;
+  }> {
+    return this.request(`/pdf/bulletin/me`, {
+      method: "POST",
+    });
+  }
+
   async genererPV(
     promotionId: number,
-    semestre: number = 2
+    semestre: number | string = 2
   ): Promise<{
     pv_id: number;
     statut: string;
@@ -1006,9 +587,25 @@ class ApiClient {
     chemin_fichier: string;
     download_url: string;
   }> {
-    return this.request(`/pdf/pv/promotion/${promotionId}?semestre=${semestre}`, {
-      method: "POST",
-    });
+    return this.request(
+      `/pdf/pv/promotion/${promotionId}?semestre=${semestre}`,
+      {
+        method: "POST",
+      }
+    );
+  }
+
+  async generatePV(
+    promotionId: number,
+    options?: { semestre?: number | string }
+  ): Promise<{
+    pv_id: number;
+    statut: string;
+    hash_controle: string;
+    chemin_fichier: string;
+    download_url: string;
+  }> {
+    return this.genererPV(promotionId, options?.semestre || 2);
   }
 
   async validerPV(pvId: number): Promise<{
@@ -1031,33 +628,75 @@ class ApiClient {
     return `${API_URL}/pdf/pv/${pvId}/download`;
   }
 
+  getBulletinUrl(etudiantId: number, semestre: number = 2): string {
+    const token = this.getToken();
+    return `${API_URL}/pdf/bulletin/${etudiantId}?semestre=${semestre}${
+      token ? `&token=${encodeURIComponent(token)}` : ""
+    }`;
+  }
+
+  getMonBulletinUrl(semestre: number = 2): string {
+    const token = this.getToken();
+    return `${API_URL}/pdf/bulletin/me?semestre=${semestre}${
+      token ? `&token=${encodeURIComponent(token)}` : ""
+    }`;
+  }
+
+  getPVUrl(promotionId: number, semestre: number | string = 2): string {
+    const token = this.getToken();
+    return `${API_URL}/pdf/pv/promotion/${promotionId}?semestre=${semestre}${
+      token ? `&token=${encodeURIComponent(token)}` : ""
+    }`;
+  }
+
   // CSV
-  async importNotes(file: File): Promise<{ importes: number; erreurs: string[] }> {
+  async importNotes(
+    file: File
+  ): Promise<{ importes: number; erreurs: string[] }> {
     const formData = new FormData();
     formData.append("file", file);
 
-    const token = this.getToken();
+    return this.fileRequest<{ importes: number; erreurs: string[] }>(
+      "/csv/notes/import",
+      formData
+    );
+  }
 
-    const response = await fetch(`${API_URL}/csv/notes/import`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    });
+  async importNotesForModule(
+    moduleId: number,
+    file: File
+  ): Promise<{ importes: number; erreurs: string[] }> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("module_id", String(moduleId));
 
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ detail: "Erreur import" }));
-
-      throw new Error(error.detail || `HTTP ${response.status}`);
-    }
-
-    return response.json();
+    return this.fileRequest<{ importes: number; erreurs: string[] }>(
+      "/csv/notes/import",
+      formData
+    );
   }
 
   getExportNotesUrl(moduleId: number): string {
     const token = this.getToken();
-    return `${API_URL}/csv/notes/export/module/${moduleId}?token=${token}`;
+    return `${API_URL}/csv/notes/export/module/${moduleId}${
+      token ? `?token=${encodeURIComponent(token)}` : ""
+    }`;
+  }
+
+  // Generic report aliases
+  async generateRapport(payload: Record<string, unknown>): Promise<{
+    download_url?: string;
+  }> {
+    return this.request("/pdf/rapport", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async generateReport(payload: Record<string, unknown>): Promise<{
+    download_url?: string;
+  }> {
+    return this.generateRapport(payload);
   }
 }
 
