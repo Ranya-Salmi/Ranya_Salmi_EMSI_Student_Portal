@@ -1,6 +1,7 @@
+from datetime import date as Date
 from typing import Optional
-from datetime import date, datetime
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class NoteBase(BaseModel):
@@ -21,14 +22,15 @@ class NoteUpdate(BaseModel):
 
 class NoteRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
     id: int
     etudiant_id: int
     evaluation_id: int
     evaluation_nom: str
-    module_id: int
     module_nom: str
+    module_id: int
     valeur: Optional[float] = None
     coefficient: float
     bareme_max: float
-    date: Optional[date] = None
+    date: Optional[Date] = None
     statut: str
