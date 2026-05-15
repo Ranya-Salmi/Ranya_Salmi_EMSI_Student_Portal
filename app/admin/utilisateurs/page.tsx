@@ -52,6 +52,7 @@ import {
   Trash2,
   UserX,
   RefreshCw,
+  ArrowDownUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, type Role, type User } from "@/lib/api";
@@ -95,6 +96,13 @@ function getUserDate(user: User) {
   return extra.date_creation || extra.created_at || "";
 }
 
+function getUserTimestamp(user: User) {
+  const dateValue = getUserDate(user);
+  const time = new Date(dateValue).getTime();
+
+  return Number.isNaN(time) ? 0 : time;
+}
+
 function formatDate(value: string) {
   if (!value) return "-";
 
@@ -113,6 +121,7 @@ export default function UsersPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -141,17 +150,28 @@ export default function UsersPage() {
     fetchUsers();
   }, []);
 
-  const filteredUsers = users.filter((user) => {
-    const fullName = `${user.first_name} ${user.last_name}`.toLowerCase();
-    const query = searchQuery.toLowerCase();
+  const filteredUsers = users
+    .filter((user) => {
+      const fullName = `${user.first_name} ${user.last_name}`.toLowerCase();
+      const query = searchQuery.toLowerCase();
 
-    const matchesSearch =
-      fullName.includes(query) || user.email.toLowerCase().includes(query);
+      const matchesSearch =
+        fullName.includes(query) || user.email.toLowerCase().includes(query);
 
-    const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
 
-    return matchesSearch && matchesRole;
-  });
+      return matchesSearch && matchesRole;
+    })
+    .sort((a, b) => {
+      const aTime = getUserTimestamp(a);
+      const bTime = getUserTimestamp(b);
+
+      if (sortOrder === "asc") {
+        return aTime - bTime;
+      }
+
+      return bTime - aTime;
+    });
 
   const resetForm = () => {
     setFormData(emptyForm);
@@ -411,7 +431,7 @@ export default function UsersPage() {
                 </CardDescription>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -434,6 +454,22 @@ export default function UsersPage() {
                     </SelectItem>
                     <SelectItem value="enseignant">Enseignant</SelectItem>
                     <SelectItem value="etudiant">Etudiant</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={sortOrder}
+                  onValueChange={(value) =>
+                    setSortOrder(value as "desc" | "asc")
+                  }
+                >
+                  <SelectTrigger className="w-[190px]">
+                    <ArrowDownUp className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Tri" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">Plus recent d&apos;abord</SelectItem>
+                    <SelectItem value="asc">Plus ancien d&apos;abord</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
