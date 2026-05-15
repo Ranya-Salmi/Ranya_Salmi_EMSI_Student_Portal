@@ -1,370 +1,436 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { api, type EtudiantRisque } from "@/lib/api";
+import { api, type AcademicModule, type Alerte, type ModuleStats } from "@/lib/api";
+import { getUrgenceColor } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
+  ClipboardList,
+  Bell,
+  ChevronRight,
   Calendar,
-  Search,
-  Save,
-  Users,
+  TrendingUp,
+  Info,
   CheckCircle2,
-  XCircle,
+  BookOpen,
+  BarChart3,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
-// Mock modules (in real app, would come from API)
-const mockModules = [
-  { id: 1, nom: "Analyse Numérique S2", code: "MATH301" },
-  { id: 2, nom: "Base de données avancées", code: "INFO302" },
-  { id: 3, nom: "Réseaux et Protocoles", code: "NET303" },
-  { id: 4, nom: "Génie Logiciel", code: "GL304" },
-];
+type ModuleStatsMap = Record<number, ModuleStats>;
 
-export default function AbsencesPage() {
-  const [etudiants, setEtudiants] = useState<EtudiantRisque[]>([]);
+function formatNumber(value: number | undefined | null, digits = 1) {
+  if (value === undefined || value === null || Number.isNaN(value)) {
+    return "-";
+  }
+
+  return value.toFixed(digits);
+}
+
+export default function EnseignantDashboardPage() {
+  const [modules, setModules] = useState<AcademicModule[]>([]);
+  const [moduleStats, setModuleStats] = useState<ModuleStatsMap>({});
+  const [alertes, setAlertes] = useState<Alerte[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [selectedModule, setSelectedModule] = useState<string>("");
-  const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split("T")[0]
-  );
-  const [search, setSearch] = useState("");
-  const [absents, setAbsents] = useState<Set<number>>(new Set());
+  const [error, setError] = useState("");
+
+  async function fetchData() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const modulesData = await api.getModules();
+      setModules(modulesData);
+
+      const statsResults = await Promise.allSettled(
+        modulesData.slice(0, 4).map(async (module) => {
+          const stats = await api.getModuleStats(module.id);
+          return [module.id, stats] as const;
+        })
+      );
+
+      const statsMap: ModuleStatsMap = {};
+
+      statsResults.forEach((result) => {
+        if (result.status === "fulfilled") {
+          const [moduleId, stats] = result.value;
+          statsMap[moduleId] = stats;
+        }
+      });
+
+      setModuleStats(statsMap);
+
+      try {
+        const alertesData = await api.getMesAlertes();
+        setAlertes(alertesData);
+      } catch {
+        setAlertes([]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de chargement");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const data = await api.getEtudiantsRisque();
-        setEtudiants(data);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Erreur de chargement");
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchData();
   }, []);
 
-  const filteredEtudiants = etudiants.filter((e) =>
-    e.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    e.cne?.toLowerCase().includes(search.toLowerCase())
-  );
+  const averageSuccessRate = useMemo(() => {
+    const values = Object.values(moduleStats)
+      .map((stats) => stats.taux_reussite)
+      .filter((value) => typeof value === "number");
 
-  const toggleAbsent = (etudiantId: number) => {
-    setAbsents((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(etudiantId)) {
-        newSet.delete(etudiantId);
-      } else {
-        newSet.add(etudiantId);
-      }
-      return newSet;
-    });
+    if (values.length === 0) return null;
+
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }, [moduleStats]);
+
+  const averageClassGrade = useMemo(() => {
+    const values = Object.values(moduleStats)
+      .map((stats) => stats.moyenne_classe)
+      .filter((value) => typeof value === "number");
+
+    if (values.length === 0) return null;
+
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }, [moduleStats]);
+
+  const stats = {
+    modulesCount: modules.length,
+    moyenneClasse: averageClassGrade,
+    tauxReussite: averageSuccessRate,
+    alertesNonLues: alertes.filter((alerte) => !alerte.lue).length,
   };
 
-  const selectAllAbsent = () => {
-    if (absents.size === filteredEtudiants.length) {
-      setAbsents(new Set());
-    } else {
-      setAbsents(new Set(filteredEtudiants.map((e) => e.id)));
-    }
-  };
-
-  const handleSaveAbsences = async () => {
-    if (!selectedModule || !selectedDate) {
-      toast.error("Veuillez sélectionner un module et une date");
-      return;
-    }
-
-    if (absents.size === 0) {
-      toast.info("Aucune absence à enregistrer");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const result = await api.saisirAbsences(
-        parseInt(selectedModule),
-        new Date(selectedDate).toISOString(),
-        Array.from(absents)
-      );
-      toast.success(`${result.crees} absence(s) enregistrée(s)`);
-      setAbsents(new Set());
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur d'enregistrement");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const presentCount = filteredEtudiants.length - absents.size;
-  const absentCount = absents.size;
+  const quickActions = [
+    {
+      title: "Saisir des notes",
+      description: "Enregistrer les notes d’une évaluation",
+      href: "/enseignant/notes",
+      icon: ClipboardList,
+      color: "bg-primary/10 text-primary",
+    },
+    {
+      title: "Saisir des absences",
+      description: "Marquer les absences d’une séance",
+      href: "/enseignant/absences",
+      icon: Calendar,
+      color: "bg-chart-2/10 text-chart-2",
+    },
+  ];
 
   return (
-    <DashboardLayout requiredRoles={["enseignant", "admin", "chef_filiere"]}>
+    <DashboardLayout requiredRoles={["enseignant"]}>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Saisie des absences</h1>
+            <h1 className="text-2xl font-bold text-foreground">Mes modules</h1>
             <p className="text-muted-foreground">
-              Marquez les absences de votre séance
+              Gérez vos cours, notes et absences
             </p>
           </div>
+
+          <Button variant="outline" onClick={fetchData} disabled={loading}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Actualiser
+          </Button>
         </div>
 
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Séance</CardTitle>
-            <CardDescription>
-              Sélectionnez le module et la date du cours
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="space-y-2">
-                <Label>Module</Label>
-                <Select value={selectedModule} onValueChange={setSelectedModule}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un module" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {mockModules.map((module) => (
-                      <SelectItem key={module.id} value={String(module.id)}>
-                        {module.nom}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Date du cours</Label>
-                <Input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Rechercher</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Nom ou CNE..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stats */}
-        {selectedModule && (
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-muted">
-                    <Users className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{filteredEtudiants.length}</p>
-                    <p className="text-sm text-muted-foreground">Total étudiants</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10">
-                    <CheckCircle2 className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-primary">{presentCount}</p>
-                    <p className="text-sm text-muted-foreground">Présents</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-destructive/10">
-                    <XCircle className="h-5 w-5 text-destructive" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-destructive">{absentCount}</p>
-                    <p className="text-sm text-muted-foreground">Absents</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        {error && (
+          <Card className="border-destructive bg-destructive/5">
+            <CardContent className="pt-6">
+              <p className="text-destructive">{error}</p>
+            </CardContent>
+          </Card>
         )}
 
-        {/* Attendance Table */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {quickActions.map((action) => {
+            const Icon = action.icon;
+
+            return (
+              <Link key={action.href} href={action.href}>
+                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
+                  <CardContent className="pt-6">
+                    <div className="flex items-start gap-4">
+                      <div
+                        className={cn(
+                          "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl",
+                          action.color
+                        )}
+                      >
+                        <Icon className="h-6 w-6" />
+                      </div>
+
+                      <div className="flex-1">
+                        <h3 className="font-semibold">{action.title}</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {action.description}
+                        </p>
+                      </div>
+
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                </div>
+
+                <div>
+                  <div className="text-2xl font-bold text-primary">
+                    {loading ? (
+                      <Skeleton className="inline-block h-8 w-10" />
+                    ) : (
+                      stats.modulesCount
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Modules</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-chart-2/10">
+                  <BarChart3 className="h-5 w-5 text-chart-2" />
+                </div>
+
+                <div>
+                  <div className="text-2xl font-bold text-chart-2">
+                    {loading ? (
+                      <Skeleton className="inline-block h-8 w-14" />
+                    ) : stats.moyenneClasse === null ? (
+                      "-"
+                    ) : (
+                      `${formatNumber(stats.moyenneClasse)}/20`
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Moyenne classe
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--risk-medium)]/10">
+                  <TrendingUp className="h-5 w-5 text-[var(--risk-medium)]" />
+                </div>
+
+                <div>
+                  <div className="text-2xl font-bold text-[var(--risk-medium)]">
+                    {loading ? (
+                      <Skeleton className="inline-block h-8 w-14" />
+                    ) : stats.tauxReussite === null ? (
+                      "-"
+                    ) : (
+                      `${formatNumber(stats.tauxReussite, 0)}%`
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Taux réussite
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-chart-2/10">
+                  <Bell className="h-5 w-5 text-chart-2" />
+                </div>
+
+                <div>
+                  <div className="text-2xl font-bold text-chart-2">
+                    {loading ? (
+                      <Skeleton className="inline-block h-8 w-8" />
+                    ) : (
+                      stats.alertesNonLues
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Alertes non lues
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Liste de présence
+                <BookOpen className="h-5 w-5 text-primary" />
+                Modules enseignés
               </CardTitle>
               <CardDescription>
-                {selectedModule
-                  ? `Cochez les étudiants absents`
-                  : "Sélectionnez un module"}
+                Liste des modules récupérés depuis la base de données
               </CardDescription>
-            </div>
-            {selectedModule && absents.size > 0 && (
-              <Button onClick={handleSaveAbsences} disabled={saving}>
-                {saving ? (
-                  <>Enregistrement...</>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Enregistrer ({absents.size})
-                  </>
-                )}
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent>
-            {!selectedModule ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <Calendar className="h-12 w-12 mb-4 opacity-50" />
-                <p className="text-lg font-medium">Sélectionnez un module</p>
-                <p className="text-sm">pour commencer la saisie des absences</p>
-              </div>
-            ) : loading ? (
-              <div className="space-y-4">
-                {[...Array(5)].map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : filteredEtudiants.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <Search className="h-12 w-12 mb-4 opacity-50" />
-                <p className="text-lg font-medium">Aucun étudiant trouvé</p>
-              </div>
-            ) : (
-              <div className="rounded-lg border overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">
-                        <Checkbox
-                          checked={absents.size === filteredEtudiants.length}
-                          onCheckedChange={selectAllAbsent}
-                          aria-label="Tous absents"
-                        />
-                      </TableHead>
-                      <TableHead className="w-12">#</TableHead>
-                      <TableHead>Étudiant</TableHead>
-                      <TableHead className="hidden md:table-cell">CNE</TableHead>
-                      <TableHead className="hidden sm:table-cell">Taux absence</TableHead>
-                      <TableHead className="w-24 text-center">Statut</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredEtudiants.map((etudiant, index) => {
-                      const isAbsent = absents.has(etudiant.id);
-                      const isHighAbsence = etudiant.taux_absence > 25;
+            </CardHeader>
 
-                      return (
-                        <TableRow
-                          key={etudiant.id}
-                          className={cn(
-                            "cursor-pointer transition-colors",
-                            isAbsent && "bg-destructive/5"
-                          )}
-                          onClick={() => toggleAbsent(etudiant.id)}
-                        >
-                          <TableCell onClick={(e) => e.stopPropagation()}>
-                            <Checkbox
-                              checked={isAbsent}
-                              onCheckedChange={() => toggleAbsent(etudiant.id)}
-                              aria-label={`Marquer ${etudiant.full_name} absent`}
-                            />
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {index + 1}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <div>
-                                <p className="font-medium">{etudiant.full_name}</p>
-                                <p className="text-sm text-muted-foreground md:hidden">
-                                  {etudiant.cne}
-                                </p>
-                              </div>
-                              {isHighAbsence && (
-                                <AlertTriangle className="h-4 w-4 text-[var(--risk-medium)]" />
-                              )}
+            <CardContent>
+              {loading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <Skeleton key={index} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : modules.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <CheckCircle2 className="mb-2 h-8 w-8 opacity-50 text-primary" />
+                  <p className="text-sm">Aucun module affecté</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {modules.map((module) => {
+                    const statsModule = moduleStats[module.id];
+
+                    return (
+                      <div
+                        key={module.id}
+                        className="rounded-lg border bg-muted/30 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{module.nom}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {module.code || "Code non défini"}
+                              {module.coefficient
+                                ? ` • Coef. ${module.coefficient}`
+                                : ""}
+                            </p>
+                          </div>
+
+                          <Badge variant="outline">
+                            Module #{module.id}
+                          </Badge>
+                        </div>
+
+                        {statsModule && (
+                          <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                            <div className="rounded-md bg-background p-2">
+                              <span className="text-muted-foreground">
+                                Moyenne :{" "}
+                              </span>
+                              <span className="font-medium">
+                                {formatNumber(statsModule.moyenne_classe)}/20
+                              </span>
                             </div>
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell font-mono text-sm">
-                            {etudiant.cne}
-                          </TableCell>
-                          <TableCell className="hidden sm:table-cell">
-                            <span className={cn(
-                              "font-medium",
-                              etudiant.taux_absence > 30 && "text-destructive",
-                              etudiant.taux_absence > 20 && etudiant.taux_absence <= 30 && "text-[var(--risk-medium)]"
-                            )}>
-                              {etudiant.taux_absence?.toFixed(1) || 0}%
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {isAbsent ? (
-                              <Badge variant="destructive" className="w-full justify-center">
-                                Absent
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="w-full justify-center bg-primary/5 text-primary border-primary/20">
-                                Présent
-                              </Badge>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+
+                            <div className="rounded-md bg-background p-2">
+                              <span className="text-muted-foreground">
+                                Réussite :{" "}
+                              </span>
+                              <span className="font-medium">
+                                {formatNumber(statsModule.taux_reussite, 0)}%
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                Alertes récentes
+              </CardTitle>
+              <CardDescription>
+                Notifications concernant vos étudiants
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent>
+              {loading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <Skeleton key={index} className="h-14 w-full" />
+                  ))}
+                </div>
+              ) : alertes.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <Bell className="mb-2 h-8 w-8 opacity-50" />
+                  <p className="text-sm">Aucune alerte</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {alertes.slice(0, 5).map((alerte) => (
+                    <div
+                      key={alerte.id}
+                      className={cn(
+                        "flex items-start gap-3 rounded-lg border p-3",
+                        getUrgenceColor(alerte.urgence)
+                      )}
+                    >
+                      <div className="mt-0.5 shrink-0">
+                        {alerte.urgence === "critical" ? (
+                          <AlertTriangle className="h-4 w-4" />
+                        ) : alerte.urgence === "warning" ? (
+                          <Info className="h-4 w-4" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={cn(
+                            "text-sm",
+                            !alerte.lue && "font-medium"
+                          )}
+                        >
+                          {alerte.titre}
+                        </p>
+                        <p className="mt-0.5 line-clamp-1 text-xs opacity-80">
+                          {alerte.etudiant_nom || "Étudiant"} — {alerte.message}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </DashboardLayout>
   );

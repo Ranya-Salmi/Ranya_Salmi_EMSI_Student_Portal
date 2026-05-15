@@ -70,7 +70,9 @@ export interface User {
   full_name: string;
   cne?: string;
   promotion_id?: number;
+  filiere_dirigee_id?: number;
   is_active: boolean;
+  created_at?: string;
 }
 
 export interface LoginResponse {
@@ -78,6 +80,15 @@ export interface LoginResponse {
   role: Role;
   user_id: number;
   full_name: string;
+}
+
+export interface AcademicModule {
+  id: number;
+  nom: string;
+  code?: string | null;
+  coefficient?: number | null;
+  promotion_id?: number | null;
+  enseignant_id?: number | null;
 }
 
 export interface Alerte {
@@ -316,6 +327,35 @@ class ApiClient {
         reject(new Error("Session invalide"));
       }
     });
+  }
+
+  // Academic
+  async getModules(params?: {
+    promotion_id?: number;
+    enseignant_id?: number;
+  }): Promise<AcademicModule[]> {
+    if (MOCK_MODE) {
+      return Promise.resolve([
+        { id: 1, nom: "Analyse Numérique S2", code: "MATH301" },
+        { id: 2, nom: "Base de données avancées", code: "INFO302" },
+        { id: 3, nom: "Réseaux et Protocoles", code: "NET303" },
+        { id: 4, nom: "Génie Logiciel", code: "GL304" },
+      ]);
+    }
+
+    const query = new URLSearchParams();
+
+    if (params?.promotion_id) {
+      query.set("promotion_id", String(params.promotion_id));
+    }
+
+    if (params?.enseignant_id) {
+      query.set("enseignant_id", String(params.enseignant_id));
+    }
+
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+
+    return this.request<AcademicModule[]>(`/academic/modules${suffix}`);
   }
 
   // Dashboard

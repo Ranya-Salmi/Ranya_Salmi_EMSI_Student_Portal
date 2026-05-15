@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import {
@@ -12,68 +12,122 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type EtudiantRisque, type Alerte } from "@/lib/api";
-import { getRiskBgColor, getUrgenceColor } from "@/lib/store";
+import { api, type AcademicModule, type Alerte, type ModuleStats } from "@/lib/api";
+import { getUrgenceColor } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
-  Users,
   ClipboardList,
-  AlertTriangle,
   Bell,
   ChevronRight,
   Calendar,
   TrendingUp,
   Info,
   CheckCircle2,
+  BookOpen,
+  BarChart3,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+type ModuleStatsMap = Record<number, ModuleStats>;
+
+function formatNumber(value: number | undefined | null, digits = 1) {
+  if (value === undefined || value === null || Number.isNaN(value)) {
+    return "-";
+  }
+
+  return value.toFixed(digits);
+}
 
 export default function EnseignantDashboardPage() {
-  const [etudiantsRisque, setEtudiantsRisque] = useState<EtudiantRisque[]>([]);
+  const [modules, setModules] = useState<AcademicModule[]>([]);
+  const [moduleStats, setModuleStats] = useState<ModuleStatsMap>({});
   const [alertes, setAlertes] = useState<Alerte[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function fetchData() {
+  async function fetchData() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const modulesData = await api.getModules();
+      setModules(modulesData);
+
+      const statsResults = await Promise.allSettled(
+        modulesData.slice(0, 4).map(async (module) => {
+          const stats = await api.getModuleStats(module.id);
+          return [module.id, stats] as const;
+        })
+      );
+
+      const statsMap: ModuleStatsMap = {};
+
+      statsResults.forEach((result) => {
+        if (result.status === "fulfilled") {
+          const [moduleId, stats] = result.value;
+          statsMap[moduleId] = stats;
+        }
+      });
+
+      setModuleStats(statsMap);
+
       try {
-        const [etudiantsData, alertesData] = await Promise.all([
-          api.getEtudiantsRisque(),
-          api.getMesAlertes(),
-        ]);
-
-        setEtudiantsRisque(etudiantsData);
+        const alertesData = await api.getMesAlertes();
         setAlertes(alertesData);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Erreur de chargement");
-      } finally {
-        setLoading(false);
+      } catch {
+        setAlertes([]);
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur de chargement");
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     fetchData();
   }, []);
 
+  const averageSuccessRate = useMemo(() => {
+    const values = Object.values(moduleStats)
+      .map((stats) => stats.taux_reussite)
+      .filter((value) => typeof value === "number");
+
+    if (values.length === 0) return null;
+
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }, [moduleStats]);
+
+  const averageClassGrade = useMemo(() => {
+    const values = Object.values(moduleStats)
+      .map((stats) => stats.moyenne_classe)
+      .filter((value) => typeof value === "number");
+
+    if (values.length === 0) return null;
+
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }, [moduleStats]);
+
   const stats = {
-    etudiantsRisqueEleve: etudiantsRisque.filter(
-      (e) => e.niveau_risque === "eleve"
-    ).length,
-    etudiantsRisqueModere: etudiantsRisque.filter(
-      (e) => e.niveau_risque === "modere"
-    ).length,
-    alertesNonLues: alertes.filter((a) => !a.lue).length,
+    modulesCount: modules.length,
+    moyenneClasse: averageClassGrade,
+    tauxReussite: averageSuccessRate,
+    alertesNonLues: alertes.filter((alerte) => !alerte.lue).length,
   };
 
   const quickActions = [
     {
       title: "Saisir des notes",
-      description: "Enregistrer les notes d'une évaluation",
+      description: "Enregistrer les notes d’une évaluation",
       href: "/enseignant/notes",
       icon: ClipboardList,
       color: "bg-primary/10 text-primary",
     },
     {
       title: "Saisir des absences",
-      description: "Marquer les absences d'une séance",
+      description: "Marquer les absences d’une séance",
       href: "/enseignant/absences",
       icon: Calendar,
       color: "bg-chart-2/10 text-chart-2",
@@ -83,12 +137,18 @@ export default function EnseignantDashboardPage() {
   return (
     <DashboardLayout requiredRoles={["enseignant"]}>
       <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Mes modules</h1>
-          <p className="text-muted-foreground">
-            Gérez vos cours, notes et absences
-          </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Mes modules</h1>
+            <p className="text-muted-foreground">
+              Gérez vos cours, notes et absences
+            </p>
+          </div>
+
+          <Button variant="outline" onClick={fetchData} disabled={loading}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Actualiser
+          </Button>
         </div>
 
         {error && (
@@ -99,19 +159,18 @@ export default function EnseignantDashboardPage() {
           </Card>
         )}
 
-        {/* Quick Actions */}
         <div className="grid gap-4 sm:grid-cols-2">
           {quickActions.map((action) => {
             const Icon = action.icon;
 
             return (
               <Link key={action.href} href={action.href}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
                   <CardContent className="pt-6">
                     <div className="flex items-start gap-4">
                       <div
                         className={cn(
-                          "flex items-center justify-center w-12 h-12 rounded-xl shrink-0",
+                          "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl",
                           action.color
                         )}
                       >
@@ -120,7 +179,7 @@ export default function EnseignantDashboardPage() {
 
                       <div className="flex-1">
                         <h3 className="font-semibold">{action.title}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">
+                        <p className="mt-1 text-sm text-muted-foreground">
                           {action.description}
                         </p>
                       </div>
@@ -134,25 +193,47 @@ export default function EnseignantDashboardPage() {
           })}
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-destructive/10">
-                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                  <BookOpen className="h-5 w-5 text-primary" />
                 </div>
 
                 <div>
-                  <div className="text-2xl font-bold text-destructive">
+                  <div className="text-2xl font-bold text-primary">
                     {loading ? (
-                      <Skeleton className="h-8 w-8 inline-block" />
+                      <Skeleton className="inline-block h-8 w-10" />
                     ) : (
-                      stats.etudiantsRisqueEleve
+                      stats.modulesCount
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Modules</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-chart-2/10">
+                  <BarChart3 className="h-5 w-5 text-chart-2" />
+                </div>
+
+                <div>
+                  <div className="text-2xl font-bold text-chart-2">
+                    {loading ? (
+                      <Skeleton className="inline-block h-8 w-14" />
+                    ) : stats.moyenneClasse === null ? (
+                      "-"
+                    ) : (
+                      `${formatNumber(stats.moyenneClasse)}/20`
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Étudiants à risque élevé
+                    Moyenne classe
                   </p>
                 </div>
               </div>
@@ -162,20 +243,22 @@ export default function EnseignantDashboardPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--risk-medium)]/10">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--risk-medium)]/10">
                   <TrendingUp className="h-5 w-5 text-[var(--risk-medium)]" />
                 </div>
 
                 <div>
                   <div className="text-2xl font-bold text-[var(--risk-medium)]">
                     {loading ? (
-                      <Skeleton className="h-8 w-8 inline-block" />
+                      <Skeleton className="inline-block h-8 w-14" />
+                    ) : stats.tauxReussite === null ? (
+                      "-"
                     ) : (
-                      stats.etudiantsRisqueModere
+                      `${formatNumber(stats.tauxReussite, 0)}%`
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    À risque modéré
+                    Taux réussite
                   </p>
                 </div>
               </div>
@@ -185,14 +268,14 @@ export default function EnseignantDashboardPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-chart-2/10">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-chart-2/10">
                   <Bell className="h-5 w-5 text-chart-2" />
                 </div>
 
                 <div>
                   <div className="text-2xl font-bold text-chart-2">
                     {loading ? (
-                      <Skeleton className="h-8 w-8 inline-block" />
+                      <Skeleton className="inline-block h-8 w-8" />
                     ) : (
                       stats.alertesNonLues
                     )}
@@ -206,74 +289,85 @@ export default function EnseignantDashboardPage() {
           </Card>
         </div>
 
-        {/* Two Column Layout */}
         <div className="grid gap-6 lg:grid-cols-2">
-          {/* Students at Risk */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-destructive" />
-                Étudiants à surveiller
+                <BookOpen className="h-5 w-5 text-primary" />
+                Modules enseignés
               </CardTitle>
               <CardDescription>
-                Étudiants avec un score de risque élevé ou modéré
+                Liste des modules récupérés depuis la base de données
               </CardDescription>
             </CardHeader>
 
             <CardContent>
               {loading ? (
                 <div className="space-y-4">
-                  {[...Array(4)].map((_, i) => (
-                    <Skeleton key={i} className="h-14 w-full" />
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <Skeleton key={index} className="h-16 w-full" />
                   ))}
                 </div>
-              ) : etudiantsRisque.filter((e) => e.niveau_risque !== "faible")
-                  .length === 0 ? (
+              ) : modules.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <CheckCircle2 className="h-8 w-8 mb-2 opacity-50 text-primary" />
-                  <p className="text-sm">Aucun étudiant à risque</p>
+                  <CheckCircle2 className="mb-2 h-8 w-8 opacity-50 text-primary" />
+                  <p className="text-sm">Aucun module affecté</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {etudiantsRisque
-                    .filter((e) => e.niveau_risque !== "faible")
-                    .sort((a, b) => b.score - a.score)
-                    .slice(0, 5)
-                    .map((etudiant) => (
+                  {modules.map((module) => {
+                    const statsModule = moduleStats[module.id];
+
+                    return (
                       <div
-                        key={etudiant.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                        key={module.id}
+                        className="rounded-lg border bg-muted/30 p-4"
                       >
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">
-                            {etudiant.full_name}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Moy:{" "}
-                            {etudiant.moyenne_generale?.toFixed(1) || "—"}/20
-                            {" • "}
-                            Abs: {etudiant.taux_absence?.toFixed(0) || 0}%
-                          </p>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{module.nom}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {module.code || "Code non défini"}
+                              {module.coefficient
+                                ? ` • Coef. ${module.coefficient}`
+                                : ""}
+                            </p>
+                          </div>
+
+                          <Badge variant="outline">
+                            Module #{module.id}
+                          </Badge>
                         </div>
 
-                        <Badge
-                          className={cn(
-                            "capitalize",
-                            getRiskBgColor(etudiant.niveau_risque)
-                          )}
-                        >
-                          {etudiant.niveau_risque === "eleve"
-                            ? "Élevé"
-                            : "Modéré"}
-                        </Badge>
+                        {statsModule && (
+                          <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                            <div className="rounded-md bg-background p-2">
+                              <span className="text-muted-foreground">
+                                Moyenne :{" "}
+                              </span>
+                              <span className="font-medium">
+                                {formatNumber(statsModule.moyenne_classe)}/20
+                              </span>
+                            </div>
+
+                            <div className="rounded-md bg-background p-2">
+                              <span className="text-muted-foreground">
+                                Réussite :{" "}
+                              </span>
+                              <span className="font-medium">
+                                {formatNumber(statsModule.taux_reussite, 0)}%
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Recent Alerts */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -288,13 +382,13 @@ export default function EnseignantDashboardPage() {
             <CardContent>
               {loading ? (
                 <div className="space-y-4">
-                  {[...Array(4)].map((_, i) => (
-                    <Skeleton key={i} className="h-14 w-full" />
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <Skeleton key={index} className="h-14 w-full" />
                   ))}
                 </div>
               ) : alertes.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <Bell className="h-8 w-8 mb-2 opacity-50" />
+                  <Bell className="mb-2 h-8 w-8 opacity-50" />
                   <p className="text-sm">Aucune alerte</p>
                 </div>
               ) : (
@@ -303,11 +397,11 @@ export default function EnseignantDashboardPage() {
                     <div
                       key={alerte.id}
                       className={cn(
-                        "flex items-start gap-3 p-3 rounded-lg border",
+                        "flex items-start gap-3 rounded-lg border p-3",
                         getUrgenceColor(alerte.urgence)
                       )}
                     >
-                      <div className="shrink-0 mt-0.5">
+                      <div className="mt-0.5 shrink-0">
                         {alerte.urgence === "critical" ? (
                           <AlertTriangle className="h-4 w-4" />
                         ) : alerte.urgence === "warning" ? (
@@ -317,7 +411,7 @@ export default function EnseignantDashboardPage() {
                         )}
                       </div>
 
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p
                           className={cn(
                             "text-sm",
@@ -326,8 +420,8 @@ export default function EnseignantDashboardPage() {
                         >
                           {alerte.titre}
                         </p>
-                        <p className="text-xs mt-0.5 opacity-80 line-clamp-1">
-                          {alerte.etudiant_nom || "Étudiant"}
+                        <p className="mt-0.5 line-clamp-1 text-xs opacity-80">
+                          {alerte.etudiant_nom || "Étudiant"} — {alerte.message}
                         </p>
                       </div>
                     </div>
