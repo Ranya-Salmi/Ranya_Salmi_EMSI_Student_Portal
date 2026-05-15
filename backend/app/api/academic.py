@@ -3,7 +3,6 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -14,8 +13,6 @@ from app.models import (
     Module,
     Evaluation,
     Inscription,
-    Absence,
-    Note,
 )
 from app.models.user import User, Role
 from app.schemas.academic import (
@@ -28,6 +25,7 @@ from app.schemas.academic import (
     EvaluationRead,
     EvaluationCreate,
 )
+from app.services import stats_service
 
 
 router = APIRouter()
@@ -42,71 +40,6 @@ class ModuleEtudiantRead(BaseModel):
     email: str
     taux_absence: float = 0.0
     moyenne_generale: float = 0.0
-
-
-def _compute_student_module_average(
-    db: Session,
-    etudiant_id: int,
-    module_id: int,
-) -> float:
-    """Calculate the real weighted average of one student in one module.
-
-    Average = sum(note * evaluation.coefficient) / sum(evaluation.coefficient)
-    Only non-null notes are counted.
-    """
-
-    rows = (
-        db.query(Note.valeur, Evaluation.coefficient)
-        .join(Evaluation, Note.evaluation_id == Evaluation.id)
-        .filter(
-            Note.etudiant_id == etudiant_id,
-            Evaluation.module_id == module_id,
-            Note.valeur.isnot(None),
-        )
-        .all()
-    )
-
-    if not rows:
-        return 0.0
-
-    total_weighted = 0.0
-    total_coeff = 0.0
-
-    for valeur, coefficient in rows:
-        coeff = float(coefficient or 1.0)
-        total_weighted += float(valeur) * coeff
-        total_coeff += coeff
-
-    if total_coeff == 0:
-        return 0.0
-
-    return round(total_weighted / total_coeff, 2)
-
-
-def _compute_student_module_absence_rate(
-    db: Session,
-    etudiant_id: int,
-    module_id: int,
-) -> float:
-    """Calculate absence rate for one student in one module.
-
-    For the demo, 20 hours is used as the reference volume per module.
-    The value is capped at 100%.
-    """
-
-    absence_hours = (
-        db.query(func.coalesce(func.sum(Absence.duree_heures), 0))
-        .filter(
-            Absence.etudiant_id == etudiant_id,
-            Absence.module_id == module_id,
-        )
-        .scalar()
-        or 0
-    )
-
-    taux_absence = min(float(absence_hours) / 20.0 * 100.0, 100.0)
-
-    return round(taux_absence, 2)
 
 
 def _check_module_access(module: Module, current: User, db: Session) -> None:
@@ -281,16 +214,19 @@ def list_module_etudiants(
     result: list[ModuleEtudiantRead] = []
 
     for student in students:
-        taux_absence = _compute_student_module_absence_rate(
+        taux_absence = stats_service.compute_absence_rate(
             db=db,
             etudiant_id=student.id,
             module_id=module_id,
         )
 
-        moyenne_generale = _compute_student_module_average(
-            db=db,
-            etudiant_id=student.id,
-            module_id=module_id,
+        moyenne_generale = (
+            stats_service.compute_module_average(
+                db=db,
+                etudiant_id=student.id,
+                module_id=module_id,
+            )
+            or 0.0
         )
 
         result.append(
