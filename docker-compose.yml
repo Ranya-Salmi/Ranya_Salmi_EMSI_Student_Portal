@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     container_name: emsi_db
     environment:
-      POSTGRES_USER: emsi_user
-      POSTGRES_PASSWORD: emsi_pass
-      POSTGRES_DB: emsi_portail
+      POSTGRES_USER: ${POSTGRES_USER:-emsi_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emsi_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-emsi_portail}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - emsi_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U emsi_user -d emsi_portail"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-emsi_user} -d ${POSTGRES_DB:-emsi_portail}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -20,7 +20,7 @@ services:
     image: redis:7-alpine
     container_name: emsi_redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -38,13 +38,21 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://emsi_user:emsi_pass@db:5432/emsi_portail
-      REDIS_URL: redis://redis:6379/0
-      SECRET_KEY: change-me-in-production-very-long-secret
-      FRONTEND_ORIGIN: http://localhost:3000
-      ENVIRONMENT: development
+      DATABASE_URL: ${DATABASE_URL:-postgresql://emsi_user:emsi_pass@db:5432/emsi_portail}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-in-production}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-portail@emsi.ma}
+      SEUIL_ABSENCE_ALERTE: ${SEUIL_ABSENCE_ALERTE:-30}
+      SEUIL_NOTE_ALERTE: ${SEUIL_NOTE_ALERTE:-10}
     ports:
-      - "8001:8000"
+      - "${BACKEND_PORT:-8001}:8000"
     volumes:
       - ./backend:/app
       - emsi_pdf:/tmp/emsi_pdf
@@ -57,10 +65,10 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8001
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
       NEXT_PUBLIC_MOCK_MODE: "false"
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     volumes:
       - ./app:/app/app
       - ./components:/app/components

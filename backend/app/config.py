@@ -1,13 +1,22 @@
 """
 Application configuration loaded from environment variables.
+
+Local development can use safe defaults.
+Production must provide secure environment variables, especially SECRET_KEY.
 """
 from functools import lru_cache
 from typing import Optional
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
     # Database
     database_url: str = "postgresql://emsi_user:emsi_pass@localhost:5432/emsi_portail"
@@ -36,6 +45,30 @@ class Settings(BaseSettings):
 
     # Environment
     environment: str = "development"
+
+    @field_validator("environment")
+    @classmethod
+    def normalize_environment(cls, value: str) -> str:
+        return value.lower().strip()
+
+    @field_validator("secret_key")
+    @classmethod
+    def validate_secret_key(cls, value: str) -> str:
+        weak_values = {
+            "dev-secret-change-in-production",
+            "change-me-in-production-very-long-secret",
+            "secret",
+            "changeme",
+        }
+
+        if not value or len(value) < 32:
+            raise ValueError("SECRET_KEY must contain at least 32 characters.")
+
+        if value in weak_values:
+            # Allowed in local development, blocked by runtime validation in main.py
+            return value
+
+        return value
 
 
 @lru_cache
