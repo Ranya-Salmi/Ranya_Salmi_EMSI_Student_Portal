@@ -109,6 +109,8 @@ def generate_threshold_alerts_for_student(db: Session, etudiant: User) -> List[A
                 else "warning"
             )
 
+            score_absence = 90 if urgence == "critical" else 70
+
             alerte = Alerte(
                 etudiant_id=etudiant.id,
                 type="absence",
@@ -118,6 +120,7 @@ def generate_threshold_alerts_for_student(db: Session, etudiant: User) -> List[A
                     f"Votre taux d'absence global est de {taux:.1f}%, "
                     f"au-dessus du seuil de {settings.seuil_absence_alerte}%."
                 ),
+                score_risque=score_absence,
             )
 
             db.add(alerte)
@@ -139,6 +142,7 @@ def generate_threshold_alerts_for_student(db: Session, etudiant: User) -> List[A
                     f"Votre moyenne générale ({moyenne:.2f}/20) est "
                     f"inférieure au seuil de {settings.seuil_note_alerte}/20."
                 ),
+                score_risque=60,
             )
 
             db.add(alerte)

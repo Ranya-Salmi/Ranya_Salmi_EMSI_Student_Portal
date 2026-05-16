@@ -1,5 +1,5 @@
 from typing import Optional, List
-from datetime import date
+from datetime import date as date_type
 from pydantic import BaseModel, ConfigDict
 
 
@@ -56,7 +56,7 @@ class EvaluationBase(BaseModel):
     type: str
     coefficient: float = 1.0
     bareme_max: float = 20.0
-    date: Optional[date] = None
+    date: Optional[date_type] = None
     module_id: int
 
 
