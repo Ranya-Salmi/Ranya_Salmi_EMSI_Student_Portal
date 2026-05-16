@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://emsi_user:emsi_pass@localhost:5432/emsi_portail"
 
     # Security
-    secret_key: str = "dev-secret-change-in-production"
+    secret_key: str = "dev-secret-change-in-production-local-key-please-change"
     access_token_expire_minutes: int = 480
     algorithm: str = "HS256"
 

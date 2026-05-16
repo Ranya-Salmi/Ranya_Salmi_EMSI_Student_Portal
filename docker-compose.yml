@@ -40,7 +40,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://emsi_user:emsi_pass@db:5432/emsi_portail}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-in-production}
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-in-production-local-key-please-change}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
