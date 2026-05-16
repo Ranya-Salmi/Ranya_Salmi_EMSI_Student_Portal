@@ -248,8 +248,13 @@ function buildNoteChartData(notes: NoteItem[]): TrendPoint[] {
   if (!notes.length) return [];
 
   const sorted = [...notes].sort((a, b) => {
-    const da = new Date(a.date || a.created_at || a.evaluation?.date || "").getTime() || 0;
-    const db = new Date(b.date || b.created_at || b.evaluation?.date || "").getTime() || 0;
+    const da =
+      new Date(a.date || a.created_at || a.evaluation?.date || "").getTime() ||
+      0;
+    const db =
+      new Date(b.date || b.created_at || b.evaluation?.date || "").getTime() ||
+      0;
+
     return da - db;
   });
 
@@ -259,6 +264,7 @@ function buildNoteChartData(notes: NoteItem[]): TrendPoint[] {
 
     if (rawDate) {
       const date = new Date(rawDate);
+
       if (!Number.isNaN(date.getTime())) {
         label = date.toLocaleDateString("fr-FR", {
           day: "2-digit",
@@ -285,6 +291,7 @@ function buildAbsenceChartData(absences: AbsenceItem[]): AbsenceTrendPoint[] {
 
     if (rawDate) {
       const date = new Date(rawDate);
+
       if (!Number.isNaN(date.getTime())) {
         label = date.toLocaleDateString("fr-FR", {
           month: "short",
@@ -320,10 +327,14 @@ function buildModulePerformanceData(notes: NoteItem[]): CompetencePoint[] {
   }
 
   return Array.from(grouped.entries())
-    .map(([competence, data]) => ({
-      competence,
-      valeur: Number(((data.total / data.count) * 5).toFixed(1)),
-    }))
+    .map(([competence, data]) => {
+      const averageOn20 = data.total / data.count;
+
+      return {
+        competence,
+        valeur: Number((averageOn20 * 5).toFixed(1)),
+      };
+    })
     .slice(0, 6);
 }
 
@@ -340,9 +351,9 @@ function buildRiskFactors(
 
   const moyenne = Number(student?.moyenne_generale ?? 0);
   const tauxAbsence = Number(student?.taux_absence ?? 0);
-  const nonJustifiees = absences.filter((a) => !a.justifiee).length;
+  const nonJustifiees = absences.filter((absence) => !absence.justifiee).length;
   const modulesSous10 = buildModulePerformanceData(notes).filter(
-    (item) => item.valeur / 5 < 10
+    (item) => item.valeur < 50
   ).length;
 
   if (tauxAbsence >= 20) {
@@ -501,7 +512,10 @@ export default function StudentDetailPage() {
 
     if (!notes.length) return null;
 
-    const totalCoef = notes.reduce((acc, note) => acc + getNoteCoefficient(note), 0);
+    const totalCoef = notes.reduce(
+      (acc, note) => acc + getNoteCoefficient(note),
+      0
+    );
 
     if (!totalCoef) return null;
 
@@ -550,7 +564,10 @@ export default function StudentDetailPage() {
     () => buildAbsenceChartData(absences),
     [absences]
   );
-  const modulePerformanceData = useMemo(() => buildModulePerformanceData(notes), [notes]);
+  const modulePerformanceData = useMemo(
+    () => buildModulePerformanceData(notes),
+    [notes]
+  );
   const riskFactors = useMemo(
     () => buildRiskFactors(student, notes, absences),
     [student, notes, absences]
@@ -605,6 +622,7 @@ export default function StudentDetailPage() {
 
       if (typeof maybeApi.generateBulletin === "function") {
         const result = await maybeApi.generateBulletin(studentId);
+
         if (result?.download_url) {
           window.open(result.download_url, "_blank");
         }
@@ -675,7 +693,10 @@ export default function StudentDetailPage() {
               </h1>
               <p className="text-muted-foreground">
                 {student.filiere_nom || student.filiere || "Filière"} -{" "}
-                {student.promotion_nom || student.promotion || student.niveau || "Promotion"}
+                {student.promotion_nom ||
+                  student.promotion ||
+                  student.niveau ||
+                  "Promotion"}
               </p>
             </div>
           </div>
@@ -756,8 +777,10 @@ export default function StudentDetailPage() {
                   className={cn(
                     "h-12 w-12 rounded-full flex items-center justify-center",
                     normalizeRiskLevel(riskLevel) === "eleve" && "bg-red-500/10",
-                    normalizeRiskLevel(riskLevel) === "modere" && "bg-yellow-500/10",
-                    normalizeRiskLevel(riskLevel) === "faible" && "bg-green-500/10"
+                    normalizeRiskLevel(riskLevel) === "modere" &&
+                      "bg-yellow-500/10",
+                    normalizeRiskLevel(riskLevel) === "faible" &&
+                      "bg-green-500/10"
                   )}
                 >
                   <Brain
@@ -1026,6 +1049,15 @@ export default function StudentDetailPage() {
                     important.
                   </p>
                 </div>
+
+                {student.score_risque?.source && (
+                  <div className="rounded-lg border p-3 text-sm text-muted-foreground">
+                    Source du calcul :{" "}
+                    <span className="font-medium text-foreground">
+                      {student.score_risque.source}
+                    </span>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1139,7 +1171,7 @@ export default function StudentDetailPage() {
                   <Textarea
                     placeholder="Rédigez votre message..."
                     value={message}
-                    onChange={(e) => setMessage(e.target.value)}
+                    onChange={(event) => setMessage(event.target.value)}
                     rows={5}
                   />
 

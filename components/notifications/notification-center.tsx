@@ -169,9 +169,7 @@ export function NotificationCenter() {
 
       window.dispatchEvent(
         new CustomEvent("emsi:alerts-updated", {
-          detail: {
-            alerts: [],
-          },
+          detail: { alerts: [] },
         })
       );
     } catch (error) {
@@ -204,9 +202,7 @@ export function NotificationCenter() {
 
       window.dispatchEvent(
         new CustomEvent("emsi:alerts-updated", {
-          detail: {
-            alerts: [],
-          },
+          detail: { alerts: [] },
         })
       );
 

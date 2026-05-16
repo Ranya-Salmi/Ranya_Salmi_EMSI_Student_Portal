@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Download,
   FileSpreadsheet,
-  FileText,
   Upload,
   XCircle,
 } from "lucide-react";
@@ -40,12 +39,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
-
-type ImportType = "notes" | "absences";
 
 interface ModuleOption {
   id: number;
@@ -104,7 +100,7 @@ function parseCsvLine(line: string): string[] {
   return result;
 }
 
-function validatePreviewRows(text: string, type: ImportType): ImportRow[] {
+function validatePreviewRows(text: string): ImportRow[] {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -118,8 +114,7 @@ function validatePreviewRows(text: string, type: ImportType): ImportRow[] {
     const matricule = columns[0] || "";
     const nom = columns[1] || "";
     const prenom = columns[2] || "";
-    const value =
-      type === "notes" ? columns[3] || "" : columns[3] || columns[4] || "";
+    const value = columns[3] || "";
 
     const etudiant =
       [prenom, nom].filter(Boolean).join(" ") || "Étudiant non identifié";
@@ -135,30 +130,28 @@ function validatePreviewRows(text: string, type: ImportType): ImportRow[] {
       };
     }
 
-    if (type === "notes") {
-      const note = Number(value.replace(",", "."));
+    const note = Number(value.replace(",", "."));
 
-      if (!Number.isFinite(note)) {
-        return {
-          id: index + 1,
-          etudiant,
-          matricule,
-          value,
-          status: "error",
-          message: "Note invalide",
-        };
-      }
+    if (!Number.isFinite(note)) {
+      return {
+        id: index + 1,
+        etudiant,
+        matricule,
+        value,
+        status: "error",
+        message: "Note invalide",
+      };
+    }
 
-      if (note < 0 || note > 20) {
-        return {
-          id: index + 1,
-          etudiant,
-          matricule,
-          value,
-          status: "error",
-          message: "La note doit être comprise entre 0 et 20",
-        };
-      }
+    if (note < 0 || note > 20) {
+      return {
+        id: index + 1,
+        etudiant,
+        matricule,
+        value,
+        status: "error",
+        message: "La note doit être comprise entre 0 et 20",
+      };
     }
 
     return {
@@ -182,18 +175,16 @@ async function readFileAsText(file: File): Promise<string> {
   });
 }
 
-function downloadCsvTemplate(type: ImportType) {
+function downloadCsvTemplate() {
   const content =
-    type === "notes"
-      ? "Matricule,Nom,Prenom,Note\nCNE_EXEMPLE,NOM_EXEMPLE,PRENOM_EXEMPLE,15.5"
-      : "Matricule,Nom,Prenom,Date,Statut\nCNE_EXEMPLE,NOM_EXEMPLE,PRENOM_EXEMPLE,2026-03-15,Absent";
+    "Matricule,Nom,Prenom,Note\nCNE_EXEMPLE,NOM_EXEMPLE,PRENOM_EXEMPLE,15.5";
 
   const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
 
   const link = document.createElement("a");
   link.href = url;
-  link.download = `template_${type}.csv`;
+  link.download = "template_notes.csv";
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -204,7 +195,6 @@ function downloadCsvTemplate(type: ImportType) {
 
 export default function ImportPage() {
   const [selectedModule, setSelectedModule] = useState("");
-  const [selectedType, setSelectedType] = useState<ImportType>("notes");
   const [modules, setModules] = useState<ModuleOption[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -268,7 +258,7 @@ export default function ImportPage() {
 
       try {
         const text = await readFileAsText(selectedFile);
-        const rows = validatePreviewRows(text, selectedType);
+        const rows = validatePreviewRows(text);
         setPreviewData(rows);
       } catch (error) {
         toast.error(
@@ -278,19 +268,12 @@ export default function ImportPage() {
         );
       }
     },
-    [selectedType]
+    []
   );
 
   const handleImport = async () => {
     if (!file || !selectedModule) {
       toast.error("Veuillez sélectionner un module et un fichier");
-      return;
-    }
-
-    if (selectedType === "absences") {
-      toast.error(
-        "L’import des absences doit être relié à un endpoint backend dédié."
-      );
       return;
     }
 
@@ -361,11 +344,11 @@ export default function ImportPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            Import de données
+            Import de notes
           </h1>
           <p className="text-muted-foreground">
             Importez des notes depuis un fichier CSV ou Excel et exportez les
-            données de vos modules.
+            notes enregistrées de vos modules.
           </p>
         </div>
 
@@ -379,22 +362,9 @@ export default function ImportPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Type de données</Label>
-                <Select
-                  value={selectedType}
-                  onValueChange={(value: ImportType) => {
-                    setSelectedType(value);
-                    setPreviewData([]);
-                    setImportComplete(false);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="notes">Notes</SelectItem>
-                    <SelectItem value="absences">Absences</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="rounded-lg border p-3 text-sm text-muted-foreground">
+                  Notes
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -409,6 +379,7 @@ export default function ImportPage() {
                       }
                     />
                   </SelectTrigger>
+
                   <SelectContent>
                     {modules.map((module) => (
                       <SelectItem key={module.id} value={String(module.id)}>
@@ -452,25 +423,15 @@ export default function ImportPage() {
               )}
 
               <div className="pt-4 space-y-2">
-                <p className="text-sm font-medium">Télécharger un modèle</p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => downloadCsvTemplate("notes")}
-                  >
-                    <Download className="h-4 w-4 mr-1" />
-                    Notes
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => downloadCsvTemplate("absences")}
-                  >
-                    <Download className="h-4 w-4 mr-1" />
-                    Absences
-                  </Button>
-                </div>
+                <p className="text-sm font-medium">Télécharger le modèle</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={downloadCsvTemplate}
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  Modèle notes
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -498,12 +459,14 @@ export default function ImportPage() {
                       <CheckCircle2 className="h-4 w-4 text-green-600" />
                       <span className="text-sm">{validCount} valides</span>
                     </div>
+
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="h-4 w-4 text-yellow-600" />
                       <span className="text-sm">
                         {warningCount} avertissements
                       </span>
                     </div>
+
                     <div className="flex items-center gap-2">
                       <XCircle className="h-4 w-4 text-red-600" />
                       <span className="text-sm">{errorCount} erreurs</span>
@@ -516,22 +479,24 @@ export default function ImportPage() {
                         <TableRow>
                           <TableHead>Étudiant</TableHead>
                           <TableHead>Matricule</TableHead>
-                          <TableHead>
-                            {selectedType === "notes" ? "Note" : "Statut"}
-                          </TableHead>
+                          <TableHead>Note</TableHead>
                           <TableHead>Validation</TableHead>
                         </TableRow>
                       </TableHeader>
+
                       <TableBody>
                         {previewData.map((row) => (
                           <TableRow key={row.id}>
                             <TableCell className="font-medium">
                               {row.etudiant}
                             </TableCell>
+
                             <TableCell className="font-mono text-sm">
                               {row.matricule}
                             </TableCell>
+
                             <TableCell>{row.value}</TableCell>
+
                             <TableCell>
                               {row.status === "valid" && (
                                 <Badge
@@ -542,6 +507,7 @@ export default function ImportPage() {
                                   Valide
                                 </Badge>
                               )}
+
                               {row.status === "warning" && (
                                 <Badge
                                   variant="outline"
@@ -551,6 +517,7 @@ export default function ImportPage() {
                                   {row.message}
                                 </Badge>
                               )}
+
                               {row.status === "error" && (
                                 <Badge
                                   variant="outline"
@@ -601,67 +568,44 @@ export default function ImportPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Export de données</CardTitle>
+            <CardTitle className="text-lg">Export de notes</CardTitle>
             <CardDescription>
               Exportez les notes enregistrées pour vos modules.
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <Tabs defaultValue="notes">
-              <TabsList>
-                <TabsTrigger value="notes">Notes</TabsTrigger>
-                <TabsTrigger value="absences">Absences</TabsTrigger>
-                <TabsTrigger value="statistiques">Statistiques</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="notes" className="pt-4">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {modules.map((module) => (
-                    <Card key={module.id} className="bg-muted/30">
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium">{module.nom}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {module.code || `Module #${module.id}`}
-                            </p>
-                          </div>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            title="Export CSV"
-                            onClick={() => exportNotes(module.id)}
-                          >
-                            <FileSpreadsheet className="h-4 w-4" />
-                          </Button>
+            {modules.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                Aucun module disponible.
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {modules.map((module) => (
+                  <Card key={module.id} className="bg-muted/30">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{module.nom}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {module.code || `Module #${module.id}`}
+                          </p>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </TabsContent>
 
-              <TabsContent value="absences" className="pt-4">
-                <div className="text-sm text-muted-foreground">
-                  L’export des absences sera disponible dès que l’endpoint
-                  backend dédié sera activé.
-                </div>
-              </TabsContent>
-
-              <TabsContent value="statistiques" className="pt-4">
-                <div className="flex flex-wrap gap-3">
-                  <Button variant="outline" disabled>
-                    <FileText className="h-4 w-4 mr-2" />
-                    Rapport global PDF
-                  </Button>
-                  <Button variant="outline" disabled>
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    Données brutes Excel
-                  </Button>
-                </div>
-              </TabsContent>
-            </Tabs>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Export CSV"
+                          onClick={() => exportNotes(module.id)}
+                        >
+                          <FileSpreadsheet className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
