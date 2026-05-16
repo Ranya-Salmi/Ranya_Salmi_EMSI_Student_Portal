@@ -12,7 +12,6 @@ from app.models.user import Role
 from app.services import pdf_service
 from app.services.audit_service import log_action
 
-
 router = APIRouter()
 
 
@@ -22,92 +21,61 @@ def _get_student_or_404(db: Session, etudiant_id: int) -> User:
         .filter(User.id == etudiant_id, User.role == Role.etudiant)
         .first()
     )
-
     if not student:
         raise HTTPException(status_code=404, detail="Etudiant introuvable")
-
     return student
 
 
 def _get_promotion_or_404(db: Session, promotion_id: int) -> Promotion:
     promotion = db.query(Promotion).filter(Promotion.id == promotion_id).first()
-
     if not promotion:
         raise HTTPException(status_code=404, detail="Promotion introuvable")
-
     return promotion
 
 
 def _ensure_can_access_student(current: User, student: User, db: Session) -> None:
     if current.role == Role.admin:
         return
-
     if current.role == Role.etudiant:
         if current.id != student.id:
             raise HTTPException(status_code=403, detail="Acces refuse")
         return
-
     if current.role == Role.chef_filiere:
         if current.filiere_dirigee_id is None or student.promotion_id is None:
             raise HTTPException(status_code=403, detail="Acces refuse")
-
         promotion = _get_promotion_or_404(db, student.promotion_id)
-
         if promotion.filiere_id != current.filiere_dirigee_id:
             raise HTTPException(status_code=403, detail="Acces refuse")
-
         return
-
     raise HTTPException(status_code=403, detail="Acces refuse")
 
 
-def _ensure_can_access_promotion(
-    current: User,
-    promotion_id: int,
-    db: Session,
-) -> Promotion:
+def _ensure_can_access_promotion(current: User, promotion_id: int, db: Session) -> Promotion:
     promotion = _get_promotion_or_404(db, promotion_id)
-
     if current.role == Role.admin:
         return promotion
-
     if current.role == Role.chef_filiere:
         if current.filiere_dirigee_id is None:
             raise HTTPException(status_code=403, detail="Acces refuse")
-
         if promotion.filiere_id != current.filiere_dirigee_id:
             raise HTTPException(status_code=403, detail="Acces refuse")
-
         return promotion
-
     raise HTTPException(status_code=403, detail="Acces refuse")
 
 
 def _return_pdf_or_html_fallback(path_value: str | None):
     path = Path(path_value) if path_value else None
-
     if not path:
         raise HTTPException(status_code=404, detail="Fichier introuvable")
-
     if path.exists():
-        return FileResponse(
-            str(path),
-            media_type="application/pdf",
-            filename=path.name,
-        )
-
+        return FileResponse(str(path), media_type="application/pdf", filename=path.name)
     fallback = path.with_suffix(".pdf.html")
-
     if fallback.exists():
-        return FileResponse(
-            str(fallback),
-            media_type="text/html",
-            filename=fallback.name,
-        )
-
+        return FileResponse(str(fallback), media_type="text/html", filename=fallback.name)
     raise HTTPException(status_code=404, detail="Fichier introuvable")
 
 
+# ----------------- Bulletins -----------------
 @router.post("/bulletin/{etudiant_id}")
 def generer_bulletin(
     etudiant_id: int,
@@ -117,13 +85,8 @@ def generer_bulletin(
     db: Session = Depends(get_db),
 ):
     student = _get_student_or_404(db, etudiant_id)
-
-    # Production rule:
-    # admin and chef_filiere can generate bulletins.
-    # students/teachers cannot generate arbitrary official bulletins.
     if current.role not in {Role.admin, Role.chef_filiere}:
         raise HTTPException(status_code=403, detail="Acces refuse")
-
     _ensure_can_access_student(current, student, db)
 
     try:
@@ -144,7 +107,6 @@ def generer_bulletin(
         },
         request=request,
     )
-
     db.commit()
 
     return {
@@ -157,22 +119,16 @@ def generer_bulletin(
 
 
 @router.get("/bulletin/{bulletin_id}/download")
-def telecharger_bulletin(
-    bulletin_id: int,
-    current: CurrentUser,
-    db: Session = Depends(get_db),
-):
+def telecharger_bulletin(bulletin_id: int, current: CurrentUser, db: Session = Depends(get_db)):
     bulletin = db.query(Bulletin).filter(Bulletin.id == bulletin_id).first()
-
     if not bulletin:
         raise HTTPException(status_code=404, detail="Bulletin introuvable")
-
     student = _get_student_or_404(db, bulletin.etudiant_id)
     _ensure_can_access_student(current, student, db)
-
     return _return_pdf_or_html_fallback(bulletin.chemin_fichier)
 
 
+# ----------------- PVs -----------------
 @router.post("/pv/promotion/{promotion_id}")
 def generer_pv(
     promotion_id: int,
@@ -182,12 +138,10 @@ def generer_pv(
     db: Session = Depends(get_db),
 ):
     _ensure_can_access_promotion(current, promotion_id, db)
-
     try:
         pv = pdf_service.generate_pv(db, promotion_id, semestre, valider=False)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-
     pv.cree_par = current.id
 
     log_action(
@@ -203,7 +157,6 @@ def generer_pv(
         },
         request=request,
     )
-
     db.commit()
 
     return {
@@ -223,10 +176,8 @@ def valider_pv(
     db: Session = Depends(get_db),
 ):
     pv = db.query(PV).filter(PV.id == pv_id).first()
-
     if not pv:
         raise HTTPException(status_code=404, detail="PV introuvable")
-
     _ensure_can_access_promotion(current, pv.promotion_id, db)
 
     if pv.statut == "valide":
@@ -255,7 +206,6 @@ def valider_pv(
         raison_modification="Validation du PV",
         request=request,
     )
-
     db.commit()
     db.refresh(pv)
 
@@ -263,24 +213,15 @@ def valider_pv(
         "pv_id": pv.id,
         "statut": pv.statut,
         "signature_numerique": pv.signature_numerique,
-        "date_validation": pv.date_validation.isoformat()
-        if pv.date_validation
-        else None,
+        "date_validation": pv.date_validation.isoformat() if pv.date_validation else None,
         "integrite_verifiee": True,
     }
 
 
 @router.get("/pv/{pv_id}/download")
-def telecharger_pv(
-    pv_id: int,
-    current: User = Depends(require_chef),
-    db: Session = Depends(get_db),
-):
+def telecharger_pv(pv_id: int, current: User = Depends(require_chef), db: Session = Depends(get_db)):
     pv = db.query(PV).filter(PV.id == pv_id).first()
-
     if not pv:
         raise HTTPException(status_code=404, detail="PV introuvable")
-
     _ensure_can_access_promotion(current, pv.promotion_id, db)
-
     return _return_pdf_or_html_fallback(pv.chemin_fichier)
