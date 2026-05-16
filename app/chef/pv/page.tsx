@@ -1,390 +1,788 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Progress } from "@/components/ui/progress"
-import { Checkbox } from "@/components/ui/checkbox"
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
-  FileText,
+  CheckCircle2,
   Download,
   Eye,
-  CheckCircle2,
-  Clock,
-  AlertTriangle,
-  FileSpreadsheet,
-  Printer,
-  Send,
-  Calendar,
+  FileCheck2,
+  FileText,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
   Users,
-  GraduationCap
-} from "lucide-react"
-import { toast } from "sonner"
+} from "lucide-react";
 
-interface Student {
-  id: number
-  matricule: string
-  nom: string
-  prenom: string
-  moyenneGenerale: number
-  credits: number
-  totalCredits: number
-  mention: string
-  decision: "admis" | "ajourne" | "exclus"
+import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { api } from "@/lib/api";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+
+type Promotion = {
+  id: number;
+  nom?: string;
+  name?: string;
+  annee?: string;
+  filiere_id?: number;
+};
+
+type ModuleItem = {
+  id: number;
+  nom?: string;
+  code?: string | null;
+  semestre?: number;
+  promotion_id?: number;
+};
+
+type StudentItem = {
+  id: number;
+  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  cne?: string | null;
+  email?: string;
+  moyenne_generale?: number;
+  taux_absence?: number;
+};
+
+type GeneratedPV = {
+  pv_id: number;
+  statut?: string;
+  hash_controle?: string | null;
+  chemin_fichier?: string | null;
+  download_url?: string;
+};
+
+type IntegrityResult = {
+  pv_id: number;
+  statut?: string;
+  hash_controle?: string | null;
+  hash_fichier?: string | null;
+  signature_numerique?: string | null;
+  integrite_verifiee: boolean;
+};
+
+type BulletinResult = {
+  bulletin_id: number;
+  decision?: string;
+  moyenne_generale?: number | null;
+  download_url?: string;
+};
+
+function getToken() {
+  const maybeApi = api as any;
+
+  if (typeof maybeApi.getToken === "function") {
+    return maybeApi.getToken();
+  }
+
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("emsi_token");
+  }
+
+  return null;
 }
 
-interface PV {
-  id: string
-  type: "deliberation" | "bulletin"
-  filiere: string
-  semestre: string
-  date: string
-  status: "draft" | "validated" | "published"
-  generatedBy: string
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken();
+
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Erreur API ${response.status}`);
+  }
+
+  return response.json();
+}
+
+function openBackendUrl(path?: string | null) {
+  if (!path) {
+    toast.error("Lien de téléchargement indisponible");
+    return;
+  }
+
+  if (path.startsWith("http")) {
+    window.open(path, "_blank");
+    return;
+  }
+
+  window.open(`${API_URL}${path}`, "_blank");
+}
+
+function promotionLabel(promotion: Promotion) {
+  return promotion.nom || promotion.name || `Promotion #${promotion.id}`;
+}
+
+function studentName(student: StudentItem) {
+  return (
+    student.full_name ||
+    `${student.first_name || ""} ${student.last_name || ""}`.trim() ||
+    `Étudiant #${student.id}`
+  );
+}
+
+function mentionFromAverage(value?: number | null) {
+  if (typeof value !== "number") return "—";
+  if (value >= 16) return "Très bien";
+  if (value >= 14) return "Bien";
+  if (value >= 12) return "Assez bien";
+  if (value >= 10) return "Passable";
+  return "—";
+}
+
+function decisionFromAverage(value?: number | null) {
+  if (typeof value !== "number") return "En attente";
+  return value >= 10 ? "Admis" : "Ajourné";
+}
+
+function decisionBadge(value?: number | null) {
+  const decision = decisionFromAverage(value);
+
+  if (decision === "Admis") {
+    return <Badge className="bg-green-100 text-green-800">Admis</Badge>;
+  }
+
+  if (decision === "Ajourné") {
+    return <Badge className="bg-yellow-100 text-yellow-800">Ajourné</Badge>;
+  }
+
+  return <Badge variant="outline">En attente</Badge>;
+}
+
+function shortHash(hash?: string | null) {
+  if (!hash) return "—";
+  return `${hash.slice(0, 12)}...${hash.slice(-8)}`;
 }
 
 export default function PVPage() {
-  const [selectedFiliere, setSelectedFiliere] = useState("3IIR-G2")
-  const [selectedSemestre, setSelectedSemestre] = useState("S2")
-  const [generating, setGenerating] = useState(false)
-  const [generateProgress, setGenerateProgress] = useState(0)
-  const [previewOpen, setPreviewOpen] = useState(false)
-  const [selectedStudents, setSelectedStudents] = useState<number[]>([])
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [modules, setModules] = useState<ModuleItem[]>([]);
+  const [students, setStudents] = useState<StudentItem[]>([]);
 
-  const filieres = [
-    { id: "3IIR-G1", name: "3IIR - Groupe 1" },
-    { id: "3IIR-G2", name: "3IIR - Groupe 2" },
-    { id: "3IIR-G3", name: "3IIR - Groupe 3" },
-  ]
+  const [selectedPromotion, setSelectedPromotion] = useState("");
+  const [selectedSemestre, setSelectedSemestre] = useState("2");
+  const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
 
-  const semestres = [
-    { id: "S1", name: "Semestre 1" },
-    { id: "S2", name: "Semestre 2" },
-  ]
+  const [loading, setLoading] = useState(true);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const students: Student[] = [
-    { id: 1, matricule: "3IIR-2025-001", nom: "Benali", prenom: "Ahmed", moyenneGenerale: 14.75, credits: 28, totalCredits: 30, mention: "Assez Bien", decision: "admis" },
-    { id: 2, matricule: "3IIR-2025-002", nom: "Idrissi", prenom: "Sara", moyenneGenerale: 16.20, credits: 30, totalCredits: 30, mention: "Bien", decision: "admis" },
-    { id: 3, matricule: "3IIR-2025-003", nom: "Tazi", prenom: "Mohamed", moyenneGenerale: 9.50, credits: 18, totalCredits: 30, mention: "-", decision: "ajourne" },
-    { id: 4, matricule: "3IIR-2025-004", nom: "Alaoui", prenom: "Fatima", moyenneGenerale: 12.30, credits: 26, totalCredits: 30, mention: "Passable", decision: "admis" },
-    { id: 5, matricule: "3IIR-2025-005", nom: "Berrada", prenom: "Youssef", moyenneGenerale: 8.20, credits: 12, totalCredits: 30, mention: "-", decision: "exclus" },
-    { id: 6, matricule: "3IIR-2025-006", nom: "Fassi", prenom: "Amina", moyenneGenerale: 17.80, credits: 30, totalCredits: 30, mention: "Tres Bien", decision: "admis" },
-    { id: 7, matricule: "3IIR-2025-007", nom: "El Amrani", prenom: "Karim", moyenneGenerale: 11.50, credits: 24, totalCredits: 30, mention: "Passable", decision: "admis" },
-    { id: 8, matricule: "3IIR-2025-008", nom: "Bennis", prenom: "Laila", moyenneGenerale: 15.40, credits: 30, totalCredits: 30, mention: "Bien", decision: "admis" },
-  ]
+  const [generatedPV, setGeneratedPV] = useState<GeneratedPV | null>(null);
+  const [integrity, setIntegrity] = useState<IntegrityResult | null>(null);
+  const [bulletins, setBulletins] = useState<BulletinResult[]>([]);
 
-  const previousPVs: PV[] = [
-    { id: "pv-001", type: "deliberation", filiere: "3IIR-G2", semestre: "S1", date: "2026-01-15", status: "published", generatedBy: "Dr. El Mansouri" },
-    { id: "pv-002", type: "deliberation", filiere: "3IIR-G1", semestre: "S1", date: "2026-01-15", status: "published", generatedBy: "Dr. El Mansouri" },
-    { id: "pv-003", type: "deliberation", filiere: "3IIR-G2", semestre: "S2", date: "2026-03-10", status: "draft", generatedBy: "Dr. El Mansouri" },
-  ]
+  const selectedPromotionObject = useMemo(() => {
+    return promotions.find((promotion) => String(promotion.id) === selectedPromotion);
+  }, [promotions, selectedPromotion]);
 
-  const stats = {
-    totalEtudiants: students.length,
-    admis: students.filter(s => s.decision === "admis").length,
-    ajournes: students.filter(s => s.decision === "ajourne").length,
-    exclus: students.filter(s => s.decision === "exclus").length,
-    moyennePromo: (students.reduce((acc, s) => acc + s.moyenneGenerale, 0) / students.length).toFixed(2),
-    tauxReussite: ((students.filter(s => s.decision === "admis").length / students.length) * 100).toFixed(1),
-  }
+  const stats = useMemo(() => {
+    const averages = students
+      .map((student) => student.moyenne_generale)
+      .filter((value): value is number => typeof value === "number");
 
-  const handleGeneratePV = async () => {
-    setGenerating(true)
-    setGenerateProgress(0)
+    const admitted = averages.filter((value) => value >= 10).length;
 
-    for (let i = 0; i <= 100; i += 5) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-      setGenerateProgress(i)
+    return {
+      total: students.length,
+      admitted,
+      failed: Math.max(students.length - admitted, 0),
+      average:
+        averages.length > 0
+          ? averages.reduce((sum, value) => sum + value, 0) / averages.length
+          : null,
+      successRate: students.length > 0 ? (admitted / students.length) * 100 : 0,
+    };
+  }, [students]);
+
+  useEffect(() => {
+    async function loadPromotions() {
+      try {
+        const data = await apiFetch<Promotion[]>("/academic/promotions");
+        setPromotions(Array.isArray(data) ? data : []);
+
+        if (Array.isArray(data) && data.length > 0) {
+          setSelectedPromotion(String(data[0].id));
+        }
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Erreur lors du chargement des promotions"
+        );
+      } finally {
+        setLoading(false);
+      }
     }
 
-    setGenerating(false)
-    toast.success("PV de délibération généré avec succès")
-    setPreviewOpen(true)
-  }
+    loadPromotions();
+  }, []);
+
+  useEffect(() => {
+    async function loadPromotionData() {
+      if (!selectedPromotion) return;
+
+      setLoadingStudents(true);
+      setStudents([]);
+      setModules([]);
+      setSelectedStudents([]);
+      setGeneratedPV(null);
+      setIntegrity(null);
+      setBulletins([]);
+
+      try {
+        const moduleData = await apiFetch<ModuleItem[]>(
+          `/academic/modules?promotion_id=${encodeURIComponent(selectedPromotion)}`
+        );
+
+        const filteredModules = (Array.isArray(moduleData) ? moduleData : []).filter(
+          (module) => !module.semestre || String(module.semestre) === selectedSemestre
+        );
+
+        setModules(filteredModules);
+
+        if (filteredModules.length === 0) {
+          toast.info("Aucun module trouvé pour cette promotion/semestre");
+          return;
+        }
+
+        const studentMaps = await Promise.all(
+          filteredModules.map(async (module) => {
+            try {
+              const moduleStudents = await apiFetch<StudentItem[]>(
+                `/academic/modules/${module.id}/etudiants`
+              );
+              return Array.isArray(moduleStudents) ? moduleStudents : [];
+            } catch {
+              return [];
+            }
+          })
+        );
+
+        const byId = new Map<number, StudentItem>();
+
+        for (const list of studentMaps) {
+          for (const student of list) {
+            const previous = byId.get(student.id);
+
+            byId.set(student.id, {
+              ...previous,
+              ...student,
+              moyenne_generale:
+                typeof student.moyenne_generale === "number"
+                  ? student.moyenne_generale
+                  : previous?.moyenne_generale,
+              taux_absence:
+                typeof student.taux_absence === "number"
+                  ? student.taux_absence
+                  : previous?.taux_absence,
+            });
+          }
+        }
+
+        setStudents(
+          Array.from(byId.values()).sort((a, b) =>
+            studentName(a).localeCompare(studentName(b), "fr")
+          )
+        );
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Erreur lors du chargement des données PV"
+        );
+      } finally {
+        setLoadingStudents(false);
+      }
+    }
+
+    loadPromotionData();
+  }, [selectedPromotion, selectedSemestre]);
+
+  const handleGeneratePV = async () => {
+    if (!selectedPromotion) {
+      toast.error("Veuillez sélectionner une promotion");
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const result = await apiFetch<GeneratedPV>(
+        `/pdf/pv/promotion/${selectedPromotion}?semestre=${selectedSemestre}`,
+        { method: "POST", body: "{}" }
+      );
+
+      setGeneratedPV(result);
+      setIntegrity(null);
+
+      toast.success("PV généré avec succès");
+      openBackendUrl(result.download_url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erreur de génération du PV");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleValidatePV = async () => {
+    if (!generatedPV?.pv_id) {
+      toast.error("Veuillez d'abord générer un PV");
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const result = await apiFetch<GeneratedPV & { signature_numerique?: string }>(
+        `/pdf/pv/${generatedPV.pv_id}/valider`,
+        { method: "POST", body: "{}" }
+      );
+
+      setGeneratedPV((current) => ({
+        ...current,
+        ...result,
+        statut: result.statut || "valide",
+      }));
+
+      toast.success("PV validé avec succès");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erreur de validation du PV");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleVerifyIntegrity = async () => {
+    if (!generatedPV?.pv_id) {
+      toast.error("Veuillez d'abord générer un PV");
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const result = await apiFetch<IntegrityResult>(
+        `/pdf/pv/${generatedPV.pv_id}/verifier-integrite`
+      );
+
+      setIntegrity(result);
+
+      if (result.integrite_verifiee) {
+        toast.success("Intégrité du PV vérifiée");
+      } else {
+        toast.error("L'intégrité du PV n'est pas vérifiée");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Erreur de vérification d'intégrité"
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleStudent = (id: number) => {
+    setSelectedStudents((current) =>
+      current.includes(id)
+        ? current.filter((studentId) => studentId !== id)
+        : [...current, id]
+    );
+  };
+
+  const toggleAllStudents = () => {
+    setSelectedStudents((current) =>
+      current.length === students.length ? [] : students.map((student) => student.id)
+    );
+  };
 
   const handleGenerateBulletins = async () => {
     if (selectedStudents.length === 0) {
-      toast.error("Veuillez sélectionner au moins un étudiant")
-      return
-    }
-    
-    setGenerating(true)
-    setGenerateProgress(0)
-
-    for (let i = 0; i <= 100; i += 10) {
-      await new Promise(resolve => setTimeout(resolve, 150))
-      setGenerateProgress(i)
+      toast.error("Veuillez sélectionner au moins un étudiant");
+      return;
     }
 
-    setGenerating(false)
-    toast.success(`${selectedStudents.length} bulletin(s) généré(s) avec succès`)
-  }
+    setBusy(true);
+    setBulletins([]);
 
-  const toggleStudent = (id: number) => {
-    setSelectedStudents(prev => 
-      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
-    )
-  }
+    try {
+      const results: BulletinResult[] = [];
 
-  const toggleAllStudents = () => {
-    if (selectedStudents.length === students.length) {
-      setSelectedStudents([])
-    } else {
-      setSelectedStudents(students.map(s => s.id))
+      for (const studentId of selectedStudents) {
+        const result = await apiFetch<BulletinResult>(
+          `/pdf/bulletin/${studentId}?semestre=${selectedSemestre}`,
+          { method: "POST", body: "{}" }
+        );
+
+        results.push(result);
+      }
+
+      setBulletins(results);
+      toast.success(`${results.length} bulletin(s) généré(s)`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Erreur de génération des bulletins"
+      );
+    } finally {
+      setBusy(false);
     }
-  }
+  };
 
-  const getDecisionBadge = (decision: Student["decision"]) => {
-    switch (decision) {
-      case "admis":
-        return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Admis</Badge>
-      case "ajourne":
-        return <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">Ajourné</Badge>
-      case "exclus":
-        return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Exclu</Badge>
-    }
-  }
-
-  const getStatusBadge = (status: PV["status"]) => {
-    switch (status) {
-      case "draft":
-        return <Badge variant="outline" className="text-yellow-600"><Clock className="h-3 w-3 mr-1" />Brouillon</Badge>
-      case "validated":
-        return <Badge variant="outline" className="text-blue-600"><CheckCircle2 className="h-3 w-3 mr-1" />Validé</Badge>
-      case "published":
-        return <Badge variant="outline" className="text-green-600"><CheckCircle2 className="h-3 w-3 mr-1" />Publié</Badge>
-    }
+  if (loading) {
+    return (
+      <DashboardLayout requiredRoles={["chef_filiere"]}>
+        <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          Chargement des promotions...
+        </div>
+      </DashboardLayout>
+    );
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout requiredRoles={["chef_filiere"]}>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">PV et Bulletins</h1>
-          <p className="text-muted-foreground">Générez les procès-verbaux de délibération et les bulletins de notes</p>
+          <h1 className="text-2xl font-bold text-foreground">PV & Bulletins</h1>
+          <p className="text-muted-foreground">
+            Génération réelle des procès-verbaux et bulletins depuis les données backend.
+          </p>
         </div>
 
-        {/* Filters */}
         <Card>
-          <CardContent className="p-4">
-            <div className="flex flex-wrap gap-4">
-              <div className="space-y-1">
-                <Label className="text-xs">Filière</Label>
-                <Select value={selectedFiliere} onValueChange={setSelectedFiliere}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filieres.map(f => (
-                      <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Semestre</Label>
-                <Select value={selectedSemestre} onValueChange={setSelectedSemestre}>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {semestres.map(s => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <CardHeader>
+            <CardTitle>Paramètres</CardTitle>
+            <CardDescription>
+              Sélectionnez la promotion et le semestre à traiter.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Promotion</Label>
+              <Select value={selectedPromotion} onValueChange={setSelectedPromotion}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une promotion" />
+                </SelectTrigger>
+                <SelectContent>
+                  {promotions.map((promotion) => (
+                    <SelectItem key={promotion.id} value={String(promotion.id)}>
+                      {promotionLabel(promotion)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Semestre</Label>
+              <Select value={selectedSemestre} onValueChange={setSelectedSemestre}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Semestre 1</SelectItem>
+                  <SelectItem value="2">Semestre 2</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const current = selectedPromotion;
+                  setSelectedPromotion("");
+                  setTimeout(() => setSelectedPromotion(current), 0);
+                }}
+                className="w-full"
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Recharger
+              </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Users className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalEtudiants}</p>
-                  <p className="text-sm text-muted-foreground">Total étudiants</p>
-                </div>
-              </div>
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">Étudiants</p>
+              <p className="mt-2 text-3xl font-bold">{stats.total}</p>
             </CardContent>
           </Card>
+
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-green-100">
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.admis}</p>
-                  <p className="text-sm text-muted-foreground">Admis ({stats.tauxReussite}%)</p>
-                </div>
-              </div>
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">Admis</p>
+              <p className="mt-2 text-3xl font-bold text-green-600">
+                {stats.admitted}
+              </p>
             </CardContent>
           </Card>
+
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-yellow-100">
-                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.ajournes}</p>
-                  <p className="text-sm text-muted-foreground">Ajournés</p>
-                </div>
-              </div>
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">Ajournés</p>
+              <p className="mt-2 text-3xl font-bold text-yellow-600">
+                {stats.failed}
+              </p>
             </CardContent>
           </Card>
+
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-100">
-                  <GraduationCap className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.moyennePromo}</p>
-                  <p className="text-sm text-muted-foreground">Moyenne promo</p>
-                </div>
-              </div>
+            <CardContent className="pt-6">
+              <p className="text-sm text-muted-foreground">Moyenne promo</p>
+              <p className="mt-2 text-3xl font-bold">
+                {stats.average === null ? "—" : stats.average.toFixed(2)}
+              </p>
             </CardContent>
           </Card>
         </div>
 
-        <Tabs defaultValue="deliberation" className="space-y-4">
+        <Tabs defaultValue="pv" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="deliberation">PV de Délibération</TabsTrigger>
-            <TabsTrigger value="bulletins">Bulletins Individuels</TabsTrigger>
-            <TabsTrigger value="historique">Historique</TabsTrigger>
+            <TabsTrigger value="pv">PV de délibération</TabsTrigger>
+            <TabsTrigger value="bulletins">Bulletins individuels</TabsTrigger>
           </TabsList>
 
-          {/* Deliberation Tab */}
-          <TabsContent value="deliberation">
+          <TabsContent value="pv" className="space-y-4">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Résultats de Délibération</CardTitle>
-                    <CardDescription>
-                      {selectedFiliere} - {selectedSemestre} - {students.length} étudiants
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setPreviewOpen(true)}>
-                      <Eye className="h-4 w-4 mr-2" />
-                      Aperçu
-                    </Button>
-                    <Button onClick={handleGeneratePV} disabled={generating}>
-                      <FileText className="h-4 w-4 mr-2" />
-                      {generating ? "Génération..." : "Générer le PV"}
-                    </Button>
-                  </div>
-                </div>
+                <CardTitle>Génération du PV</CardTitle>
+                <CardDescription>
+                  {selectedPromotionObject
+                    ? `${promotionLabel(selectedPromotionObject)} - Semestre ${selectedSemestre}`
+                    : "Aucune promotion sélectionnée"}
+                </CardDescription>
               </CardHeader>
-              <CardContent>
-                {generating && (
-                  <div className="mb-4 space-y-2">
-                    <Progress value={generateProgress} />
-                    <p className="text-sm text-center text-muted-foreground">
-                      Génération en cours... {generateProgress}%
+
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-3">
+                  <Button onClick={handleGeneratePV} disabled={busy || !selectedPromotion}>
+                    {busy ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileText className="mr-2 h-4 w-4" />
+                    )}
+                    Générer le PV réel
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => openBackendUrl(generatedPV?.download_url)}
+                    disabled={!generatedPV?.download_url}
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    Ouvrir le PDF
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={handleValidatePV}
+                    disabled={busy || !generatedPV?.pv_id || generatedPV?.statut === "valide"}
+                  >
+                    <FileCheck2 className="mr-2 h-4 w-4" />
+                    Valider le PV
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={handleVerifyIntegrity}
+                    disabled={busy || !generatedPV?.pv_id}
+                  >
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    Vérifier intégrité
+                  </Button>
+                </div>
+
+                {generatedPV && (
+                  <div className="rounded-lg border p-4 text-sm">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div>
+                        <span className="text-muted-foreground">PV ID : </span>
+                        <span className="font-medium">{generatedPV.pv_id}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Statut : </span>
+                        <Badge>
+                          {generatedPV.statut === "valide"
+                            ? "Validé"
+                            : generatedPV.statut || "Brouillon"}
+                        </Badge>
+                      </div>
+                      <div className="md:col-span-2">
+                        <span className="text-muted-foreground">Hash : </span>
+                        <span className="font-mono">{shortHash(generatedPV.hash_controle)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {integrity && (
+                  <div className="rounded-lg border p-4 text-sm">
+                    <div className="mb-2 flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4" />
+                      <span className="font-semibold">Vérification d’intégrité</span>
+                      {integrity.integrite_verifiee ? (
+                        <Badge className="bg-green-100 text-green-800">Valide</Badge>
+                      ) : (
+                        <Badge variant="destructive">Non valide</Badge>
+                      )}
+                    </div>
+
+                    <p className="font-mono text-xs text-muted-foreground">
+                      Hash enregistré : {integrity.hash_controle || "—"}
+                    </p>
+                    <p className="font-mono text-xs text-muted-foreground">
+                      Hash fichier : {integrity.hash_fichier || "—"}
                     </p>
                   </div>
                 )}
-                <div className="border rounded-lg overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[120px]">Matricule</TableHead>
-                        <TableHead>Nom & Prénom</TableHead>
-                        <TableHead className="text-center">Moyenne</TableHead>
-                        <TableHead className="text-center">Crédits</TableHead>
-                        <TableHead className="text-center">Mention</TableHead>
-                        <TableHead className="text-center">Décision</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {students.map(student => (
-                        <TableRow key={student.id}>
-                          <TableCell className="font-mono text-sm">{student.matricule}</TableCell>
-                          <TableCell className="font-medium">{student.nom} {student.prenom}</TableCell>
-                          <TableCell className="text-center font-medium">{student.moyenneGenerale.toFixed(2)}</TableCell>
-                          <TableCell className="text-center">{student.credits}/{student.totalCredits}</TableCell>
-                          <TableCell className="text-center">{student.mention}</TableCell>
-                          <TableCell className="text-center">{getDecisionBadge(student.decision)}</TableCell>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Étudiants concernés</CardTitle>
+                <CardDescription>
+                  Liste récupérée depuis les modules de la promotion sélectionnée.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent>
+                {loadingStudents ? (
+                  <div className="flex items-center justify-center py-10 text-muted-foreground">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Chargement...
+                  </div>
+                ) : students.length === 0 ? (
+                  <div className="py-10 text-center text-sm text-muted-foreground">
+                    Aucun étudiant trouvé pour cette promotion/semestre.
+                  </div>
+                ) : (
+                  <div className="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Matricule</TableHead>
+                          <TableHead>Nom & Prénom</TableHead>
+                          <TableHead>Moyenne</TableHead>
+                          <TableHead>Mention</TableHead>
+                          <TableHead>Décision</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {students.map((student) => (
+                          <TableRow key={student.id}>
+                            <TableCell className="font-mono">
+                              {student.cne || "—"}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {studentName(student)}
+                            </TableCell>
+                            <TableCell>
+                              {typeof student.moyenne_generale === "number"
+                                ? student.moyenne_generale.toFixed(2)
+                                : "—"}
+                            </TableCell>
+                            <TableCell>{mentionFromAverage(student.moyenne_generale)}</TableCell>
+                            <TableCell>{decisionBadge(student.moyenne_generale)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Bulletins Tab */}
-          <TabsContent value="bulletins">
+          <TabsContent value="bulletins" className="space-y-4">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Bulletins Individuels</CardTitle>
-                    <CardDescription>
-                      Sélectionnez les étudiants pour générer leurs bulletins
-                    </CardDescription>
-                  </div>
-                  <Button 
-                    onClick={handleGenerateBulletins} 
-                    disabled={generating || selectedStudents.length === 0}
+                <CardTitle>Bulletins individuels</CardTitle>
+                <CardDescription>
+                  Sélectionnez des étudiants puis générez leurs bulletins réels.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    onClick={handleGenerateBulletins}
+                    disabled={busy || selectedStudents.length === 0}
                   >
-                    <Download className="h-4 w-4 mr-2" />
-                    Générer {selectedStudents.length > 0 ? `(${selectedStudents.length})` : ""}
+                    {busy ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-2 h-4 w-4" />
+                    )}
+                    Générer {selectedStudents.length || ""} bulletin(s)
+                  </Button>
+
+                  <Button variant="outline" onClick={toggleAllStudents} disabled={!students.length}>
+                    <Users className="mr-2 h-4 w-4" />
+                    {selectedStudents.length === students.length
+                      ? "Tout désélectionner"
+                      : "Tout sélectionner"}
                   </Button>
                 </div>
-              </CardHeader>
-              <CardContent>
-                {generating && (
-                  <div className="mb-4 space-y-2">
-                    <Progress value={generateProgress} />
-                    <p className="text-sm text-center text-muted-foreground">
-                      Génération en cours... {generateProgress}%
-                    </p>
-                  </div>
-                )}
-                <div className="border rounded-lg overflow-hidden">
+
+                <div className="rounded-lg border">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[50px]">
+                        <TableHead className="w-12">
                           <Checkbox
-                            checked={selectedStudents.length === students.length}
+                            checked={students.length > 0 && selectedStudents.length === students.length}
                             onCheckedChange={toggleAllStudents}
                           />
                         </TableHead>
-                        <TableHead className="w-[120px]">Matricule</TableHead>
+                        <TableHead>Matricule</TableHead>
                         <TableHead>Nom & Prénom</TableHead>
-                        <TableHead className="text-center">Moyenne</TableHead>
-                        <TableHead className="text-center">Décision</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>Moyenne</TableHead>
+                        <TableHead>Décision</TableHead>
                       </TableRow>
                     </TableHeader>
+
                     <TableBody>
-                      {students.map(student => (
+                      {students.map((student) => (
                         <TableRow key={student.id}>
                           <TableCell>
                             <Checkbox
@@ -392,187 +790,54 @@ export default function PVPage() {
                               onCheckedChange={() => toggleStudent(student.id)}
                             />
                           </TableCell>
-                          <TableCell className="font-mono text-sm">{student.matricule}</TableCell>
-                          <TableCell className="font-medium">{student.nom} {student.prenom}</TableCell>
-                          <TableCell className="text-center font-medium">{student.moyenneGenerale.toFixed(2)}</TableCell>
-                          <TableCell className="text-center">{getDecisionBadge(student.decision)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="icon" title="Aperçu">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" title="Télécharger">
-                                <Download className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* History Tab */}
-          <TabsContent value="historique">
-            <Card>
-              <CardHeader>
-                <CardTitle>Historique des PV</CardTitle>
-                <CardDescription>
-                  Documents générés précédemment
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="border rounded-lg overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Filière</TableHead>
-                        <TableHead>Semestre</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Statut</TableHead>
-                        <TableHead>Généré par</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {previousPVs.map(pv => (
-                        <TableRow key={pv.id}>
+                          <TableCell className="font-mono">{student.cne || "—"}</TableCell>
+                          <TableCell className="font-medium">{studentName(student)}</TableCell>
                           <TableCell>
-                            <Badge variant="secondary">
-                              {pv.type === "deliberation" ? "PV Délibération" : "Bulletin"}
-                            </Badge>
+                            {typeof student.moyenne_generale === "number"
+                              ? student.moyenne_generale.toFixed(2)
+                              : "—"}
                           </TableCell>
-                          <TableCell className="font-medium">{pv.filiere}</TableCell>
-                          <TableCell>{pv.semestre}</TableCell>
-                          <TableCell>{new Date(pv.date).toLocaleDateString("fr-FR")}</TableCell>
-                          <TableCell>{getStatusBadge(pv.status)}</TableCell>
-                          <TableCell className="text-muted-foreground">{pv.generatedBy}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="icon" title="Aperçu">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" title="Télécharger">
-                                <Download className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" title="Imprimer">
-                                <Printer className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
+                          <TableCell>{decisionBadge(student.moyenne_generale)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </div>
+
+                {bulletins.length > 0 && (
+                  <div className="space-y-2 rounded-lg border p-4">
+                    <div className="flex items-center gap-2 font-semibold">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      Bulletins générés
+                    </div>
+
+                    {bulletins.map((bulletin) => (
+                      <div
+                        key={bulletin.bulletin_id}
+                        className="flex items-center justify-between rounded-md border p-3 text-sm"
+                      >
+                        <div>
+                          Bulletin #{bulletin.bulletin_id} —{" "}
+                          {bulletin.decision || "Décision non disponible"}
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openBackendUrl(bulletin.download_url)}
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Télécharger
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* Preview Dialog */}
-        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Aperçu du PV de Délibération</DialogTitle>
-              <DialogDescription>
-                {selectedFiliere} - {selectedSemestre} - Année universitaire 2025/2026
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="border rounded-lg p-6 bg-white space-y-6">
-              {/* Header */}
-              <div className="text-center space-y-2 border-b pb-4">
-                <h2 className="text-xl font-bold">EMSI CENTRE</h2>
-                <p className="text-muted-foreground">École Marocaine des Sciences de l&apos;Ingénieur</p>
-                <h3 className="text-lg font-semibold mt-4">PROCÈS-VERBAL DE DÉLIBÉRATION</h3>
-                <p>Session : {selectedSemestre} - Année 2025/2026</p>
-                <p>Filière : {filieres.find(f => f.id === selectedFiliere)?.name}</p>
-              </div>
-
-              {/* Results Table */}
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>N°</TableHead>
-                    <TableHead>Matricule</TableHead>
-                    <TableHead>Nom & Prénom</TableHead>
-                    <TableHead className="text-center">Moyenne</TableHead>
-                    <TableHead className="text-center">Mention</TableHead>
-                    <TableHead className="text-center">Décision</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {students.map((student, index) => (
-                    <TableRow key={student.id}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell className="font-mono text-sm">{student.matricule}</TableCell>
-                      <TableCell>{student.nom} {student.prenom}</TableCell>
-                      <TableCell className="text-center">{student.moyenneGenerale.toFixed(2)}</TableCell>
-                      <TableCell className="text-center">{student.mention}</TableCell>
-                      <TableCell className="text-center font-medium">
-                        {student.decision.toUpperCase()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              {/* Stats Summary */}
-              <div className="grid grid-cols-4 gap-4 text-center border-t pt-4">
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalEtudiants}</p>
-                  <p className="text-sm text-muted-foreground">Total</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-green-600">{stats.admis}</p>
-                  <p className="text-sm text-muted-foreground">Admis</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-yellow-600">{stats.ajournes}</p>
-                  <p className="text-sm text-muted-foreground">Ajournés</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.tauxReussite}%</p>
-                  <p className="text-sm text-muted-foreground">Taux de réussite</p>
-                </div>
-              </div>
-
-              {/* Signatures */}
-              <div className="grid grid-cols-2 gap-8 pt-8 border-t">
-                <div className="text-center">
-                  <p className="font-medium">Le Chef de Filière</p>
-                  <div className="h-16 border-b border-dashed mt-8 mb-2" />
-                  <p className="text-sm text-muted-foreground">Date et Signature</p>
-                </div>
-                <div className="text-center">
-                  <p className="font-medium">Le Directeur des Études</p>
-                  <div className="h-16 border-b border-dashed mt-8 mb-2" />
-                  <p className="text-sm text-muted-foreground">Date et Signature</p>
-                </div>
-              </div>
-            </div>
-
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" onClick={() => setPreviewOpen(false)}>
-                Fermer
-              </Button>
-              <Button variant="outline">
-                <Printer className="h-4 w-4 mr-2" />
-                Imprimer
-              </Button>
-              <Button>
-                <Download className="h-4 w-4 mr-2" />
-                Télécharger PDF
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </DashboardLayout>
-  )
+  );
 }
